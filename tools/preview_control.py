@@ -37,7 +37,7 @@ class Controls:
         buttons = ttk.Frame(frame); buttons.pack(anchor='w', pady=8)
         ttk.Button(buttons, text='Запустить', command=self.start).pack(side='left', padx=(0, 8))
         ttk.Button(buttons, text='Остановить', command=self.stop).pack(side='left')
-        ttk.Label(frame, text='Auto определяет входной сигнал. Звук в этом окне отключён.').pack(anchor='w')
+        ttk.Label(frame, text='Composite + RCA: видео и стереозвук 48 кГц.').pack(anchor='w')
         window.protocol('WM_DELETE_WINDOW', self.close)
         signal.signal(signal.SIGTERM, lambda *_: self.close())
         signal.signal(signal.SIGINT, lambda *_: self.close())
@@ -78,7 +78,7 @@ class Controls:
             self.log = Path(str(self.prefix) + f'-{self.counter}.log')
             self.log.parent.mkdir(parents=True, exist_ok=True)
             self.player_log = Path(str(self.prefix) + f'-{self.counter}.wrapper.log').open('w')
-            self.process = subprocess.Popen([sys.executable, str(ROOT / 'tools/preview.py'),
+            self.process = subprocess.Popen([sys.executable, str(ROOT / 'tools/preview_av.py'),
                 '--standard', self.active_mode, '--seconds', '0', '--log', str(self.log)],
                 stdout=self.player_log, stderr=self.player_log)
             self.status.set(f'Режим {self.active_mode.upper()}: ожидание сигнала…')

@@ -20,11 +20,12 @@ def main():
     p.add_argument('--standard', choices=['pal', 'secam', 'ntsc', 'auto'], default='pal')
     p.add_argument('--seconds', type=int, default=600, help='0: until interrupted')
     p.add_argument('--audio-attenuation-db', type=int, default=6)
+    p.add_argument('--strict', action='store_true', help='stop at video gaps instead of correcting viewing cadence')
     p.add_argument('--log', type=Path, default=ROOT / 'build/preview-av.log')
     args = p.parse_args()
     try:
         engine = CaptureStream(standard=args.standard, seconds=args.seconds,
-                               attenuation=args.audio_attenuation_db)
+                               attenuation=args.audio_attenuation_db, conceal_gaps=not args.strict)
     except ValueError as error:
         p.error(str(error))
     if not shutil.which('ffplay'):

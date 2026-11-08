@@ -33,6 +33,30 @@ def held_frames(previous, stamp, period, conceal=False):
     return missing
 
 
+class VideoCadence:
+    """Viewing uses USB elapsed time; strict recording preserves every gap error."""
+    def __init__(self, period, conceal=False):
+        self.period, self.conceal = period, conceal
+        self.epoch = self.previous = None
+        self.sent = 0
+
+    def advance(self, stamp):
+        if self.previous is None:
+            self.epoch = stamp
+        elif not self.conceal:
+            held_frames(self.previous, stamp, self.period)
+        elif not 0 < stamp - self.previous <= self.period * 51 + 2000:
+            raise StreamError('video timestamp gap exceeds bounded viewing recovery')
+        self.previous = stamp
+        missing = round((stamp - self.epoch) / self.period) - self.sent if self.conceal else 0
+        if missing > 50:
+            raise StreamError('video timestamp gap exceeds bounded viewing recovery')
+        if missing < 0:
+            return -1
+        self.sent += missing + 1
+        return missing
+
+
 class PacketWindow:
     """Recent nonempty packets; no disk growth during indefinite capture."""
     def __init__(self, limit=32768):
@@ -100,6 +124,7 @@ class StreamStats:
     video_packets: int = 0
     audio_packets: int = 0
     held_video_frames: int = 0
+    dropped_video_frames: int = 0
     native_exit: int | None = None
     mux_exit: int | None = None
 
@@ -235,24 +260,26 @@ class CaptureStream:
 
             def video_worker():
                 frames = []
-                previous = None
                 last_frame = None
                 period = 1001000 / 30 if self.standard == 'ntsc' else 40000
+                cadence = VideoCadence(period, self.conceal_gaps)
 
                 def event(index, field1, field2):
-                    nonlocal previous, last_frame
+                    nonlocal last_frame
                     stamp = windows[0].byte_time(field1)
-                    if previous is not None:
-                        missing = held_frames(previous, stamp, period, self.conceal_gaps)
-                        for _ in range(missing):
-                            enqueue(queues[0], last_frame)
-                        self.stats.held_video_frames += missing
-                    previous = stamp
+                    missing = cadence.advance(stamp)
+                    frame = frames.pop()
+                    self.stats.video_frames += 1
+                    if missing < 0:
+                        self.stats.dropped_video_frames += 1
+                        return
+                    for _ in range(missing):
+                        enqueue(queues[0], last_frame)
+                    self.stats.held_video_frames += missing
                     if not first_stamp:
                         first_stamp.append(stamp); aligned.set()
-                    last_frame = frames.pop()
+                    last_frame = frame
                     enqueue(queues[0], last_frame)
-                    self.stats.video_frames += 1
 
                 decoder = Decoder(720, 480 if self.standard == 'ntsc' else 576, frames.append, event)
                 broken = False

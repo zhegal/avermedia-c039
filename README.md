@@ -92,9 +92,11 @@ when a keyframe is available and 503 otherwise. Diagnostics are written to
 `build/serve.log`. Press Ctrl+C to stop and restore USB controls. Closing all
 players leaves the source running. Use `--port` to change the port.
 
-The HTTP source is intended for viewing: short, integral video gaps (up to
-50 missing frames) are filled by repeating the last complete frame, counted
-in `held_video_frames`. Other timing errors still stop capture. Add `--strict`
+The HTTP source is intended for viewing: USB elapsed time determines viewing
+cadence. Short gaps (up to 50 missing frames) repeat the last complete frame;
+frames arriving before their next output slot are skipped. Both are counted
+in `held_video_frames` and `dropped_video_frames`. Longer outages and USB errors
+still stop capture. Add `--strict`
 to reject all gaps, as the archival tools do by default. HTTP recording saves
 the viewing stream, including any repeated frames. There is no deinterlacing
 or scaling; field dominance and analog lip-sync remain uncalibrated.
@@ -109,8 +111,9 @@ python3 tools/preview_control.py --standard auto
 ```
 
 The Tkinter panel selects Auto, PAL or SECAM and displays the decoder's detected
-format and synchronization status. A separate ffplay window shows video, with
-no audio in this control-panel preview. Stop it before using another capture tool.
+format and synchronization status. A separate ffplay window shows video and
+plays stereo RCA audio at 48 kHz, with an additional 6 dB attenuation.
+Stop it before using another capture tool.
 
 Auto continuously reads the decoder's AFD status and requires three stable
 observations before changing PAL/SECAM settings. The output remains 720×576/25;
@@ -119,8 +122,10 @@ confirmed by the user to display correct color in SECAM and after a running
 SECAM→PAL transition. The reverse physical transition still needs validation.
 The panel requires Tkinter; command-line streaming does not.
 
-The video-only preview holds its last complete frame while sync is unstable.
-Strict live recording still stops on a frame timestamp gap instead of hiding loss.
+The panel's A/V preview corrects short timing disruptions for viewing and safely
+restarts capture after a stream error. Strict live recording still stops on a
+frame timestamp gap instead of hiding loss. `tools/preview_av.py --strict`
+provides the same strict behavior in the standalone A/V preview.
 
 ## Live preview
 
@@ -196,7 +201,7 @@ Physical Composite PAL tests used a menu and moving video with RCA audio.
 | HTTP clients | Live VLC picture; simultaneous FFmpeg decode, stream inspection and copy recording |
 | Stream shutdown | SIGTERM, early reader exit and a stalled downstream tested; USB restored |
 | Lifecycle | Finite capture, preview SIGTERM, player exit, restart and control restoration tested |
-| Software tests | 20 Python tests; 1,681 injected control-transfer failures; C ASan/UBSan run passed |
+| Software tests | 23 Python tests; 1,681 injected control-transfer failures; C ASan/UBSan run passed |
 
 Initial and final incomplete fields are discarded. Packet timestamps align
 USB delivery, not the unmeasured internal analog video/audio latency.

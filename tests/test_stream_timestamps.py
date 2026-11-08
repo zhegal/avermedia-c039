@@ -6,7 +6,7 @@ import time
 import unittest
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / 'src'))
-from capture_stream import PacketWindow, StreamError, held_frames
+from capture_stream import PacketWindow, StreamError, held_frames, VideoCadence
 
 
 def packet(offset, time_us=1000000, length=24, status='00000000'):
@@ -14,6 +14,24 @@ def packet(offset, time_us=1000000, length=24, status='00000000'):
 
 
 class StreamingTimestamps(unittest.TestCase):
+    def test_viewing_recovers_fractional_vhs_phase_change_without_accumulating_time(self):
+        clock = VideoCadence(40000, True)
+        self.assertEqual([clock.advance(t) for t in (0, 40000, 110000, 150000, 190000)],
+                         [0, 0, 1, 0, 0])
+        self.assertEqual(clock.sent, 6)
+
+    def test_viewing_skips_early_frame_and_rejects_unbounded_outage(self):
+        clock = VideoCadence(40000, True)
+        self.assertEqual([clock.advance(t) for t in (0, 10000, 40000)], [0, -1, 0])
+        with self.assertRaises(StreamError):
+            clock.advance(3000000)
+
+    def test_default_cadence_rejects_fractional_phase_change(self):
+        clock = VideoCadence(40000)
+        clock.advance(0)
+        with self.assertRaises(StreamError):
+            clock.advance(70000)
+
     def test_archival_timing_never_silently_holds_lost_frames(self):
         self.assertEqual(held_frames(1000000, 1039875, 40000), 0)
         with self.assertRaisesRegex(StreamError, 'timestamp gap'):
