@@ -12,6 +12,7 @@ USB ID: `07ca:c039`. Hardware decoder ID: `0x5a3e` (Conexant CX23102).
 - Continuous PAL/SECAM auto detection with debounced chroma reconfiguration.
 - Stereo signed 16-bit little-endian PCM at 48 kHz.
 - Live NUT/MPEG-TS output to stdout or a new file; FFmpeg/ffplay preview.
+- Local HTTP MPEG-TS source with independent, bounded client queues.
 - Bounded queues and in-memory packet telemetry for indefinite streaming.
 - Offline frame assembly, USB timestamp alignment and MPEG-2/MP2 export.
 - Checked control restoration on normal completion and SIGINT/SIGTERM.
@@ -59,7 +60,47 @@ python3 tools/stream.py --seconds 60 --format mpegts --field-order tff \
 ```
 
 The field order is an explicit provisional choice. Existing output files are
-refused. Local HTTP/OBS/VLC integration is not included in this checkpoint.
+refused.
+
+## Local source for VLC, OBS and FFmpeg
+
+Stop other capture tools, then start one shared source:
+
+```sh
+python3 tools/serve.py --standard auto --field-order tff
+```
+
+Open `http://127.0.0.1:8079/live.ts` in VLC using File → Open Network.
+The same URL can be read by multiple clients. The server binds to loopback
+only; at most eight clients are accepted. New clients receive the latest
+keyframe with program tables. A slow client is disconnected independently.
+
+Record the encoded video and audio without another encoding pass:
+
+```sh
+ffmpeg -n -i http://127.0.0.1:8079/live.ts -map 0:v:0 -map 0:a:0 -c copy capture.ts
+```
+
+For OBS, add a Media Source, disable Local File, enter the URL as Input and
+use `mpegts` as Input Format. This uses OBS's FFmpeg source; no camera plugin
+is required. See the [OBS source implementation](https://github.com/obsproject/obs-studio/blob/master/plugins/obs-ffmpeg/obs-ffmpeg-source.c).
+VLC and FFmpeg were tested with the physical device; OBS itself has not been
+tested on this machine.
+
+`/status` reports JSON capture counters and errors; `/health` returns 200
+when a keyframe is available and 503 otherwise. Diagnostics are written to
+`build/serve.log`. Press Ctrl+C to stop and restore USB controls. Closing all
+players leaves the source running. Use `--port` to change the port.
+
+The HTTP source is intended for viewing: short, integral video gaps (up to
+50 missing frames) are filled by repeating the last complete frame, counted
+in `held_video_frames`. Other timing errors still stop capture. Add `--strict`
+to reject all gaps, as the archival tools do by default. HTTP recording saves
+the viewing stream, including any repeated frames. There is no deinterlacing
+or scaling; field dominance and analog lip-sync remain uncalibrated.
+
+For client testing without USB, use `--replay existing.ts`; it loops a recording
+until interrupted. This mode does not open the capture device.
 
 ## VCR preview controls and Auto PAL/SECAM
 
@@ -152,9 +193,10 @@ Physical Composite PAL tests used a menu and moving video with RCA audio.
 | Video clock versus nominal 25 fps | Approximately −14.1 ms over 300 seconds |
 | VCR auto mode | Correct SECAM color and continuous SECAM→PAL transition confirmed by user |
 | Live pipeline | NUT→FFmpeg decode and direct MPEG-TS recording tested on hardware |
+| HTTP clients | Live VLC picture; simultaneous FFmpeg decode, stream inspection and copy recording |
 | Stream shutdown | SIGTERM, early reader exit and a stalled downstream tested; USB restored |
 | Lifecycle | Finite capture, preview SIGTERM, player exit, restart and control restoration tested |
-| Software tests | 12 Python tests; 1,681 injected control-transfer failures; ASan/UBSan run passed |
+| Software tests | 20 Python tests; 1,681 injected control-transfer failures; C ASan/UBSan run passed |
 
 Initial and final incomplete fields are discarded. Packet timestamps align
 USB delivery, not the unmeasured internal analog video/audio latency.
@@ -168,7 +210,8 @@ USB delivery, not the unmeasured internal analog video/audio latency.
 - Temporal field dominance and analog lip-sync offset need a controlled test.
 - Long-term clock-drift correction is not implemented.
 - Hot unplug, sleep/wake and disk-full recovery are not validated.
-- System camera/audio-device integration and direct OBS/VLC integration are absent.
+- System camera/audio-device integration is absent; HTTP clients use an encoded stream.
+- OBS Media Source configuration is documented but not physically validated here.
 - SIGKILL, power loss or a process crash may prevent control restoration.
 
 During AV power-up, an OUT transaction can fail after applying the register
@@ -181,6 +224,7 @@ result fields are not treated as immutable state.
 
 - `src/av_init.c`: bounded AV/AFE/video/audio initialization and rollback.
 - `src/capture_stream.py`: shared bounded streaming engine.
+- `src/http_stream.py`, `tools/serve.py`: local MPEG-TS fanout service.
 - `src/iso_probe.c`: asynchronous ISO transport and packet timestamps.
 - `src/probe.c`: device access and capture CLI; `--help` lists modes.
 - `src/bt656.py`: SAV-only/SAV-EAV field assembly.

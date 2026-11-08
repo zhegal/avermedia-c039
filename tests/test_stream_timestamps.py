@@ -6,7 +6,7 @@ import time
 import unittest
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / 'src'))
-from capture_stream import PacketWindow, StreamError
+from capture_stream import PacketWindow, StreamError, held_frames
 
 
 def packet(offset, time_us=1000000, length=24, status='00000000'):
@@ -14,6 +14,22 @@ def packet(offset, time_us=1000000, length=24, status='00000000'):
 
 
 class StreamingTimestamps(unittest.TestCase):
+    def test_archival_timing_never_silently_holds_lost_frames(self):
+        self.assertEqual(held_frames(1000000, 1039875, 40000), 0)
+        with self.assertRaisesRegex(StreamError, 'timestamp gap'):
+            held_frames(1000000, 1080000, 40000)
+
+    def test_viewer_can_fill_bounded_integral_frame_gaps(self):
+        self.assertEqual(held_frames(1000000, 1080000, 40000, True), 1)
+        self.assertEqual(held_frames(1000000, 1280125, 40000, True), 6)
+        self.assertEqual(held_frames(1000000, 1000000 + 3 * 1001000 / 30,
+                                     1001000 / 30, True), 2)
+
+    def test_viewer_rejects_large_reversed_or_unstable_timing(self):
+        for delta in (0, -40000, 70000, 40000 * 52):
+            with self.subTest(delta=delta), self.assertRaises(StreamError):
+                held_frames(1000000, 1000000 + delta, 40000, True)
+
     def test_exact_byte_time_and_complete_stereo_sample_offset(self):
         window = PacketWindow()
         window.add(b'bus_frame,microframe,transfer_status,packet_status,length,file_offset')

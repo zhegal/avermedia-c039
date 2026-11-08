@@ -22,6 +22,17 @@ class StreamError(RuntimeError):
     pass
 
 
+def held_frames(previous, stamp, period, conceal=False):
+    """Allow bounded integral frame loss only for an explicitly lossy viewer."""
+    delta = stamp - previous
+    if abs(delta - period) <= 1000:
+        return 0
+    missing = round(delta / period) - 1
+    if not conceal or not 1 <= missing <= 50 or abs(delta - (missing + 1) * period) > 2000:
+        raise StreamError('video timestamp gap; refusing silent CFR frame loss')
+    return missing
+
+
 class PacketWindow:
     """Recent nonempty packets; no disk growth during indefinite capture."""
     def __init__(self, limit=32768):
@@ -88,13 +99,14 @@ class StreamStats:
     audio_skip_samples: int = 0
     video_packets: int = 0
     audio_packets: int = 0
+    held_video_frames: int = 0
     native_exit: int | None = None
     mux_exit: int | None = None
 
 
 class CaptureStream:
     def __init__(self, *, standard='pal', seconds=0, attenuation=6,
-                 container='nut', field_order=None):
+                 container='nut', field_order=None, conceal_gaps=False):
         if standard not in ('pal', 'secam', 'ntsc', 'auto') or not 0 <= seconds <= 3600:
             raise ValueError('invalid standard or duration')
         if not 0 <= attenuation <= 48 or container not in ('nut', 'mpegts'):
@@ -103,6 +115,7 @@ class CaptureStream:
             raise ValueError('MPEG-TS requires explicit tff/bff field order')
         self.standard, self.seconds, self.attenuation = standard, seconds, attenuation
         self.container, self.field_order = container, field_order
+        self.conceal_gaps = conceal_gaps
         self.stopping = threading.Event()
         self.requested_stop = False
         self.errors = []
@@ -209,6 +222,10 @@ class CaptureStream:
                                 windows[index].add(line)
                             except (ValueError, StreamError) as error:
                                 self.fail(error); broken = True; break
+                        if index == 0:
+                            self.stats.video_packets = windows[index].packets
+                        else:
+                            self.stats.audio_packets = windows[index].packets
                     if pending and not broken:
                         self.fail('truncated packet telemetry')
                 except Exception as error:
@@ -219,17 +236,22 @@ class CaptureStream:
             def video_worker():
                 frames = []
                 previous = None
+                last_frame = None
                 period = 1001000 / 30 if self.standard == 'ntsc' else 40000
 
                 def event(index, field1, field2):
-                    nonlocal previous
+                    nonlocal previous, last_frame
                     stamp = windows[0].byte_time(field1)
-                    if previous is not None and abs(stamp - previous - period) > 1000:
-                        raise StreamError('video timestamp gap; refusing silent CFR frame loss')
+                    if previous is not None:
+                        missing = held_frames(previous, stamp, period, self.conceal_gaps)
+                        for _ in range(missing):
+                            enqueue(queues[0], last_frame)
+                        self.stats.held_video_frames += missing
                     previous = stamp
                     if not first_stamp:
                         first_stamp.append(stamp); aligned.set()
-                    enqueue(queues[0], frames.pop())
+                    last_frame = frames.pop()
+                    enqueue(queues[0], last_frame)
                     self.stats.video_frames += 1
 
                 decoder = Decoder(720, 480 if self.standard == 'ntsc' else 576, frames.append, event)
