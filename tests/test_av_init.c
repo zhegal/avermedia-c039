@@ -48,12 +48,29 @@ static int transfer(void *context,int write,uint8_t request,uint16_t value,
 }
 static int cancelled(void *context) { mock *m=context; return m->cancel_at && m->calls>=m->cancel_at; }
 static void sleep_ms(void *context,unsigned ms) { (void)context; assert(ms<=100); }
-static int ready(void *context) { mock *m=context; m->forward_calls=m->calls; return 0; }
+static int ready(void *context,int (*monitor)(void *),void *monitor_context) {
+    mock *m=context;
+    if(m->standard==4) {
+        // SECAM -> PAL -> SECAM on one running session, with debounce.
+        const unsigned formats[]={12,4,12};
+        for(unsigned step=0;step<3;step++) {
+            m->video[0x40d]=formats[step];
+            for(unsigned i=0;i<3;i++) if(monitor(monitor_context)) {
+                m->video[0x40d]=12; return 1;
+            }
+            assert((m->video[0x400]&0xf)==0); // AFD remains active.
+            assert(m->video[0x47c]==(formats[step]==12?0x5f:0x63));
+            assert(m->video[0x476]==36); // Still 576 active rows, no scaling.
+        }
+    }
+    m->forward_calls=m->calls; return 0;
+}
 static mock initial(void) {
     mock m={0};
     // Nonzero defaults catch implementations that blindly restore zero.
     memset(m.afe,0x55,sizeof(m.afe));
     memset(m.video,0x5a,sizeof(m.video));
+    m.video[0x40d]=12; m.video[0x40e]=0x35; // Stable SECAM, present/H/V lock.
     m.i2s[0xe]=0x31; m.i2s[0xf]=0xfe;
     m.bridge[0x74][1]=2; // Preserve bits outside PWR_MODE_MASK.
     return m;
@@ -94,7 +111,7 @@ int main(void) {
     assert(run(&applied)==0); restored(&applied);
     mock not_applied=initial(); not_applied.power_transaction_error=1; not_applied.power_not_applied=1;
     assert(run(&not_applied)!=0); restored(&not_applied);
-    for(unsigned standard=1;standard<=3;standard++) {
+    for(unsigned standard=1;standard<=4;standard++) {
         mock av=initial(); av.standard=standard; av.line_audio=1;
         assert(run(&av)==0); restored(&av);
         injected+=av.calls;
@@ -104,5 +121,7 @@ int main(void) {
             if(i<=av.forward_calls) restored(&m);
         }
     }
-    printf("PASS: %u transfer failures across AFE/PAL/SECAM/NTSC+audio, cancellation, bounded PLL, busy-state refusal\n",injected);
+    mock automatic=initial(); automatic.standard=4;
+    assert(run(&automatic)==0); restored(&automatic);
+    printf("PASS: %u transfer failures across AFE/PAL/SECAM/NTSC/Auto+audio, cancellation, bounded PLL, busy-state refusal\n",injected);
 }

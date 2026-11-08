@@ -17,7 +17,7 @@ from capture_stream import CaptureStream
 
 def main():
     p = argparse.ArgumentParser(description=__doc__)
-    p.add_argument('--standard', choices=['pal', 'secam', 'ntsc'], default='pal')
+    p.add_argument('--standard', choices=['pal', 'secam', 'ntsc', 'auto'], default='pal')
     p.add_argument('--seconds', type=int, default=600, help='0: until interrupted')
     p.add_argument('--audio-attenuation-db', type=int, default=6)
     p.add_argument('--log', type=Path, default=ROOT / 'build/preview-av.log')

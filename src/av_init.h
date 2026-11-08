@@ -13,8 +13,8 @@ typedef struct {
     c039_control control;
     void (*sleep_ms)(void *, unsigned);
     int (*cancelled)(void *);
-    int (*on_ready)(void *); // Optional bounded transport probe before rollback.
-    unsigned video_standard; // 0=unchanged, 1=PAL, 2=SECAM, 3=NTSC-M.
+    int (*on_ready)(void *, int (*monitor)(void *), void *monitor_context);
+    unsigned video_standard; // 0=unchanged, 1=PAL, 2=SECAM, 3=NTSC-M, 4=auto PAL/SECAM.
     int line_audio;
     unsigned audio_attenuation_db; // 0..48, PATH1_VOLUME half-dB steps.
 } c039_transport;

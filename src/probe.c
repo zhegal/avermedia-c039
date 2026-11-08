@@ -39,7 +39,10 @@ static const char *iso_path=NULL;
 static int iso_endpoint=4;
 static unsigned iso_seconds=1;
 static int fifo_telemetry=0;
-static int av_iso_ready(void *context) { return c039_iso_probe(context,iso_path,iso_endpoint,iso_seconds,fifo_telemetry,av_cancelled,context); }
+static int av_iso_ready(void *context,int (*monitor)(void *),void *monitor_context) {
+    return c039_iso_probe(context,iso_path,iso_endpoint,iso_seconds,fifo_telemetry,av_cancelled,context,
+                          monitor,monitor_context);
+}
 static int recover_preview(IOUSBDeviceInterface182 **dev) {
     // Recovery only for the exact state left by our first preview process.
     // The original register values are recorded in evidence/live-preview-01.txt.
@@ -115,9 +118,10 @@ static void usage(const char *program) {
         "  --registers | --afe          read-only register diagnostics\n"
         "  --av-power | --av-init       temporary power/AFE/I2S and hardware ID\n"
         "  --iso-probe FILE             video transport, unchanged decoder\n"
-        "  --video-probe pal|secam|ntsc FILE  Composite raw endpoint payload\n"
+        "  --video-probe pal|secam|ntsc|auto FILE  Composite payload\n"
         "  --audio-probe FILE           line PCM, stereo S16_LE 48kHz\n"
-        "  --capture pal|secam|ntsc PREFIX   simultaneous video + audio\n"
+        "  --capture pal|secam|ntsc|auto PREFIX   simultaneous video + audio\n"
+        "  auto: continuous PAL/SECAM detection, fixed 720x576/25 geometry\n"
         "  --calibrate                 AFE calibration (automatic in --capture)\n"
         "  --seconds 0..3600            duration; 0=until signal (default 1 second)\n"
         "  --audio-attenuation-db 0..48 additional PCM attenuation (default 0)\n"
@@ -181,14 +185,14 @@ int main(int argc, char **argv) {
         }
         else if(!strcmp(argv[i],"--video-probe") && i+2<argc) {
             const char *standard=argv[++i];
-            video_standard=!strcmp(standard,"pal")?1:!strcmp(standard,"secam")?2:!strcmp(standard,"ntsc")?3:0;
-            if(!video_standard) { fprintf(stderr,"expected pal, secam or ntsc\n"); return 64; }
+            video_standard=!strcmp(standard,"pal")?1:!strcmp(standard,"secam")?2:!strcmp(standard,"ntsc")?3:!strcmp(standard,"auto")?4:0;
+            if(!video_standard) { fprintf(stderr,"expected pal, secam, ntsc or auto\n"); return 64; }
             iso_path=argv[++i]; av_init=2;
         }
         else if(!strcmp(argv[i],"--capture") && i+2<argc) {
             const char *standard=argv[++i];
-            video_standard=!strcmp(standard,"pal")?1:!strcmp(standard,"secam")?2:!strcmp(standard,"ntsc")?3:0;
-            if(!video_standard) { fprintf(stderr,"expected pal, secam or ntsc\n"); return 64; }
+            video_standard=!strcmp(standard,"pal")?1:!strcmp(standard,"secam")?2:!strcmp(standard,"ntsc")?3:!strcmp(standard,"auto")?4:0;
+            if(!video_standard) { fprintf(stderr,"expected pal, secam, ntsc or auto\n"); return 64; }
             iso_path=argv[++i]; av_init=2; calibrate=1; iso_endpoint=0;
         }
         else if(argv[i][0]=='-') { usage(argv[0]); return 64; }

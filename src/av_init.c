@@ -20,6 +20,7 @@ typedef struct {
     c039_transport *io;
     entry journal[128];
     unsigned count;
+    unsigned active_standard,pending_standard,stable_count;
 } session;
 
 static int cancelled(session *s) {
@@ -155,7 +156,7 @@ static int video_byte_mask(session *s,unsigned reg,uint8_t mask,uint8_t bits) {
     if(read_reg(s,4,0x8829,reg,&v,1)) return 1;
     return video_byte(s,reg,(v&~mask)|(bits&mask));
 }
-static int video_setup(session *s,unsigned standard) {
+static int video_setup(session *s,unsigned standard,int settle) {
     // Composite VIN_2_1 and DIF bypass from cx231xx_set_decoder_video_input.
     // No MCU reset/start, firmware download, or audio-DSP register writes.
     uint8_t mux=0;
@@ -184,9 +185,36 @@ static int video_setup(session *s,unsigned standard) {
     for(unsigned i=0;i<6;i++) if(video_byte(s,scale_regs[i],i==5?8:0)) return 1;
     if(video_byte(s,0x49f,ntsc?0x14:0x11) || video_byte(s,0x402,secam?0:4) ||
        video_byte_mask(s,0x401,0x60,0) || video_byte_mask(s,0x401,0x60,0x60)) return 1;
-    delay(s,100);
+    if(settle) delay(s,100);
     uint8_t status[4];
     return read_reg(s,4,0x8829,0x40c,status,4);
+}
+static const char *standard_name(unsigned standard) {
+    return standard==1?"pal":standard==2?"secam":standard==3?"ntsc":standard==4?"auto":"unknown";
+}
+static int video_monitor(void *context) {
+    session *s=context;
+    if(!s->io->video_standard) return 0;
+    uint8_t b[4];
+    if(read_reg(s,4,0x8829,0x40c,b,4)) return 1;
+    unsigned fmt=b[1]&15;
+    unsigned detected=fmt==4?1:fmt==12?2:(fmt>=1 && fmt<=3)?3:0;
+    unsigned present=(b[2]&0x20)!=0,hlock=(b[2]&1)!=0,vlock=(b[2]&4)!=0;
+    if(s->io->video_standard==4 && present && hlock && vlock && (detected==1 || detected==2)) {
+        if(s->pending_standard==detected) s->stable_count++;
+        else { s->pending_standard=detected; s->stable_count=1; }
+        if(s->stable_count>=3 && s->active_standard!=detected) {
+            printf("standard_transition from=%s to=%s\n",standard_name(s->active_standard),standard_name(detected));
+            // Both standards use the same native 720x576/25 frame geometry.
+            // Keep AFD active while updating standard-specific chroma controls.
+            if(video_setup(s,detected,0) || video_byte_mask(s,0x400,0xf,0)) return 1;
+            s->active_standard=detected;
+        }
+    } else s->stable_count=0;
+    printf("signal mode=%s detected=%s fmt=%u present=%u hlock=%u vlock=%u chroma=%u selected=%s\n",
+        standard_name(s->io->video_standard),standard_name(detected),fmt,present,hlock,vlock,
+        (b[2]&8)!=0,standard_name(s->active_standard));
+    return 0;
 }
 static int audio_setup(session *s) {
     // Line input subset of cx231xx_set_audio_decoder_input + 48kHz SRCs.
@@ -203,7 +231,7 @@ static int audio_setup(session *s) {
 int c039_av_probe(c039_transport *transport,uint16_t *decoder_id,int calibrate) {
     session s={.io=transport};
     *decoder_id=0;
-    if(transport->audio_attenuation_db>48 || transport->video_standard>3) return 1;
+    if(transport->audio_attenuation_db>48 || transport->video_standard>4) return 1;
     puts("stage=external-av-power");
     int failed=power(&s);
     if(!failed && calibrate) { puts("stage=afe-super-block"); failed=super_block(&s); }
@@ -226,12 +254,14 @@ int c039_av_probe(c039_transport *transport,uint16_t *decoder_id,int calibrate) 
     }
     if(!failed && transport->video_standard) {
         puts("stage=firmware-free-composite-video");
-        failed=video_setup(&s,transport->video_standard);
+        s.active_standard=transport->video_standard==4?1:transport->video_standard;
+        failed=video_setup(&s,s.active_standard,1);
+        if(!failed && transport->video_standard==4) failed=video_byte_mask(&s,0x400,0xf,0);
     }
     if(!failed && transport->line_audio) {
         puts("stage=firmware-free-line-audio"); failed=audio_setup(&s);
     }
-    if(!failed && transport->on_ready) failed=transport->on_ready(transport->context);
+    if(!failed && transport->on_ready) failed=transport->on_ready(transport->context,video_monitor,&s);
     printf("stage=rollback registers=%u\n",s.count);
     int cleanup_failed=0;
     while(s.count) {

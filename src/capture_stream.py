@@ -95,7 +95,7 @@ class StreamStats:
 class CaptureStream:
     def __init__(self, *, standard='pal', seconds=0, attenuation=6,
                  container='nut', field_order=None):
-        if standard not in ('pal', 'secam', 'ntsc') or not 0 <= seconds <= 3600:
+        if standard not in ('pal', 'secam', 'ntsc', 'auto') or not 0 <= seconds <= 3600:
             raise ValueError('invalid standard or duration')
         if not 0 <= attenuation <= 48 or container not in ('nut', 'mpegts'):
             raise ValueError('invalid attenuation or container')

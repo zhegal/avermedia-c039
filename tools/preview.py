@@ -16,12 +16,12 @@ from bt656 import Decoder
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument('--standard', choices=['pal', 'secam', 'ntsc'], default='pal')
+    parser.add_argument('--standard', choices=['pal', 'secam', 'ntsc', 'auto'], default='pal')
     parser.add_argument('--seconds', type=int, default=600)
     parser.add_argument('--log', type=Path, default=ROOT / 'build' / 'preview.log')
     args = parser.parse_args()
-    if not 1 <= args.seconds <= 3600:
-        parser.error('seconds must be 1..3600')
+    if not 0 <= args.seconds <= 3600:
+        parser.error('seconds must be 0..3600')
     stopped = False
     capture = player = None
 
@@ -49,6 +49,9 @@ def main():
             capture = subprocess.Popen([str(ROOT / 'build' / 'c039-probe'), '--calibrate',
                 '--seconds', str(args.seconds), '--video-probe', args.standard, str(fifo),
                 str(Path(temp) / 'configuration.bin')], stdout=log, stderr=log)
+            # Open the player even while the VCR is stopped or changing standard.
+            player.stdin.write(bytes([128, 16, 128, 16]) * (720 * height // 2))
+            player.stdin.flush()
             decoder = Decoder(720, height, player.stdin.write)
             import select
             while capture.poll() is None and player.poll() is None and not stopped:

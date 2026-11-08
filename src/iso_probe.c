@@ -168,7 +168,8 @@ static int cleanup(stream *s) {
     return failed;
 }
 int c039_iso_probe(IOUSBDeviceInterface182 **dev,const char *path,
-                   int endpoint,unsigned seconds,int fifo_telemetry,int (*cancelled)(void *),void *context) {
+                   int endpoint,unsigned seconds,int fifo_telemetry,int (*cancelled)(void *),void *context,
+                   int (*monitor)(void *),void *monitor_context) {
     if((endpoint!=0 && endpoint!=3 && endpoint!=4) || seconds>3600) return 1;
     // endpoint=0 captures EP84 and EP83 together, on a shared USB bus timeline.
     stream streams[2]={0}; unsigned count=endpoint?1:2;
@@ -206,10 +207,15 @@ int c039_iso_probe(IOUSBDeviceInterface182 **dev,const char *path,
     // A fixed whole number of 8ms transfers yields matching USB time spans.
     unsigned wanted=seconds?(seconds*1000)/(PACKETS/8):UINT32_MAX;
     CFAbsoluteTime deadline=CFAbsoluteTimeGetCurrent()+seconds+2;
+    CFAbsoluteTime next_monitor=CFAbsoluteTimeGetCurrent();
     while(!failed && !cancelled(context)) {
         int finished=1;
         for(unsigned n=0;n<count;n++) if(streams[n].transfers<wanted) finished=0;
         if(finished) break;
+        if(monitor && CFAbsoluteTimeGetCurrent()>=next_monitor) {
+            if(monitor(monitor_context)) { failed=1; break; }
+            next_monitor=CFAbsoluteTimeGetCurrent()+.2;
+        }
         if(seconds && CFAbsoluteTimeGetCurrent()>deadline) { fprintf(stderr,"iso capture deadline exceeded\n"); failed=1; break; }
         CFRunLoopRunInMode(kCFRunLoopDefaultMode,0.002,false);
         for(unsigned n=0;!failed && n<count;n++) {

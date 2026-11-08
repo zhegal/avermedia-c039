@@ -8,7 +8,8 @@ USB ID: `07ca:c039`. Hardware decoder ID: `0x5a3e` (Conexant CX23102).
 - Device discovery, descriptors and fixed register diagnostics through IOKit.
 - AV power, AFE calibration, Composite input and line-audio initialization.
 - Asynchronous isochronous video/audio capture on a shared USB bus timeline.
-- PAL 720×576 UYVY, 25 frames/s, two fields preserved.
+- PAL/SECAM 720×576 UYVY, 25 frames/s, two fields preserved.
+- Continuous PAL/SECAM auto detection with debounced chroma reconfiguration.
 - Stereo signed 16-bit little-endian PCM at 48 kHz.
 - Live NUT/MPEG-TS output to stdout or a new file; FFmpeg/ffplay preview.
 - Bounded queues and in-memory packet telemetry for indefinite streaming.
@@ -59,6 +60,26 @@ python3 tools/stream.py --seconds 60 --format mpegts --field-order tff \
 
 The field order is an explicit provisional choice. Existing output files are
 refused. Local HTTP/OBS/VLC integration is not included in this checkpoint.
+
+## VCR preview controls and Auto PAL/SECAM
+
+```sh
+python3 tools/preview_control.py --standard auto
+```
+
+The Tkinter panel selects Auto, PAL or SECAM and displays the decoder's detected
+format and synchronization status. A separate ffplay window shows video, with
+no audio in this control-panel preview. Stop it before using another capture tool.
+
+Auto continuously reads the decoder's AFD status and requires three stable
+observations before changing PAL/SECAM settings. The output remains 720×576/25;
+NTSC is not part of this automatic mode. A real mixed-standard VCR tape was
+confirmed by the user to display correct color in SECAM and after a running
+SECAM→PAL transition. The reverse physical transition still needs validation.
+The panel requires Tkinter; command-line streaming does not.
+
+The video-only preview holds its last complete frame while sync is unstable.
+Strict live recording still stops on a frame timestamp gap instead of hiding loss.
 
 ## Live preview
 
@@ -129,17 +150,20 @@ Physical Composite PAL tests used a menu and moving video with RCA audio.
 | 300-second video | 7,498 complete frames; no internal frame timestamp gaps |
 | 300-second audio | 14,400,068 stereo samples; no full-scale samples at additional −6 dB |
 | Video clock versus nominal 25 fps | Approximately −14.1 ms over 300 seconds |
+| VCR auto mode | Correct SECAM color and continuous SECAM→PAL transition confirmed by user |
 | Live pipeline | NUT→FFmpeg decode and direct MPEG-TS recording tested on hardware |
 | Stream shutdown | SIGTERM, early reader exit and a stalled downstream tested; USB restored |
 | Lifecycle | Finite capture, preview SIGTERM, player exit, restart and control restoration tested |
-| Software tests | 12 Python tests; 1,170 injected control-transfer failures; ASan/UBSan run passed |
+| Software tests | 12 Python tests; 1,681 injected control-transfer failures; ASan/UBSan run passed |
 
 Initial and final incomplete fields are discarded. Packet timestamps align
 USB delivery, not the unmeasured internal analog video/audio latency.
 
 ## Limitations
 
-- SECAM and NTSC-M settings exist but have no physical signal validation.
+- NTSC-M settings exist but have no physical signal validation.
+- SECAM color and SECAM→PAL auto switching were checked on a VCR; long timed
+  packet/audio audits and PAL→SECAM transition validation remain outstanding.
 - S-Video input selection is not implemented.
 - Temporal field dominance and analog lip-sync offset need a controlled test.
 - Long-term clock-drift correction is not implemented.
