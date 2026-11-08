@@ -1,0 +1,22 @@
+# Publish only source, tests, build instructions and license/provenance files.
+# Research notes, device logs, recordings, firmware and vendor packages stay local.
+*
+!/.gitignore
+!/README.md
+!/Makefile
+!/LICENSE
+!/NOTICE
+!/LICENSES/
+!/LICENSES/MIT.txt
+!/references/
+!/references/linux-sources.json
+!/src/
+!/src/*.c
+!/src/*.h
+!/src/*.m
+!/src/*.py
+!/tests/
+!/tests/*.c
+!/tests/*.py
+!/tools/
+!/tools/*.py

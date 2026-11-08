@@ -1,0 +1,36 @@
+C039 macOS userspace capture
+
+The project is distributed under GPL-2.0-or-later unless a source file carries
+an explicit MIT SPDX identifier. The combined c039-probe executable includes
+the GPL initialization module and is distributed under GPL-2.0-or-later.
+The GPL version 2 text is in LICENSE. The MIT text is in LICENSES/MIT.txt.
+
+src/av_init.c adapts initialization, input routing and timing sequences from
+Linux v6.12 cx231xx and cx25840 drivers. Original notices include:
+
+cx231xx-core.c, cx231xx-avcore.c, cx231xx-audio.c:
+Copyright (C) 2008 Srinivasa Deevi / Conexant.
+cx231xx-core.c is based on the em28xx driver.
+
+cx25840-core.c:
+Copyright (C) 2004 Ulf Eklund.
+Based on the saa7115 driver and Chris Kennedy's cx25840 driver.
+V4L2 API cleanup/rewrite by Tyler Trafford (2005).
+VBI support and fixes by Hans Verkuil.
+NTSC sliced VBI support by Christopher Neufeld.
+CX23885 support by Steven Toth.
+CX2388[578] IRQ handling, IO pin mux and fixes:
+Copyright (C) 2010 Andy Walls.
+CX23888 DIF support: Copyright (C) 2011 Steven Toth.
+Pin/pad mapping and output format configuration:
+Copyright (C) 2011 Maciej S. Szmigiero.
+
+All referenced Linux driver sources use GPL-2.0-or-later. Source URLs and
+SHA-256 hashes are recorded in references/linux-sources.json. The manifest
+records research paths; the upstream source files are not vendored here.
+The macOS adaptation replaces Linux device/V4L2/URB infrastructure with
+userspace IOKit requests, bounded initialization, a control rollback journal,
+and asynchronous isochronous transfers. It is not a Linux kernel module.
+
+The SAV/EAV parser uses the cx231xx-video.c protocol as a technical reference.
+No firmware image, vendor driver binary or captured media is distributed.

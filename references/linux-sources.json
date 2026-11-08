@@ -1,0 +1,77 @@
+[
+  {
+    "file": "references/cx231xx-audio.c",
+    "source": "https://raw.githubusercontent.com/torvalds/linux/v6.12/drivers/media/usb/cx231xx/cx231xx-audio.c",
+    "sha256": "c14110a457391e861c76b4ed0d27daff8888d8703e3a4492b8e6e9684249f85d"
+  },
+  {
+    "file": "references/cx231xx-avcore.c",
+    "source": "https://raw.githubusercontent.com/torvalds/linux/v6.12/drivers/media/usb/cx231xx/cx231xx-avcore.c",
+    "sha256": "9980a443577947a76564ea0a681a71c1556acaf214f3e73d46a4973d2aadb456"
+  },
+  {
+    "file": "references/cx231xx-cards.c",
+    "source": "https://raw.githubusercontent.com/torvalds/linux/v6.12/drivers/media/usb/cx231xx/cx231xx-cards.c",
+    "sha256": "58dc730c9272d8ed9de16bd27c73ba307bc8f08e261322c4073815154ebf97b1"
+  },
+  {
+    "file": "references/cx231xx-core.c",
+    "source": "https://raw.githubusercontent.com/torvalds/linux/v6.12/drivers/media/usb/cx231xx/cx231xx-core.c",
+    "sha256": "57934a799190a44c9db7769f90b68c00090c35695ea2d2ce7497e8f8673affbe"
+  },
+  {
+    "file": "references/cx231xx-i2c.c",
+    "source": "https://raw.githubusercontent.com/torvalds/linux/v6.12/drivers/media/usb/cx231xx/cx231xx-i2c.c",
+    "sha256": "b4f24c88c43321598c9da62401fdfc6354da58c0d296a5057952416b1b95abbb"
+  },
+  {
+    "file": "references/cx231xx-pcb-cfg.c",
+    "source": "https://raw.githubusercontent.com/torvalds/linux/v6.12/drivers/media/usb/cx231xx/cx231xx-pcb-cfg.c",
+    "sha256": "303df3a07156f67975acf7b4b294c762d2d2bb9b479adfda94956b2cf67175bd"
+  },
+  {
+    "file": "references/cx231xx-video.c",
+    "source": "https://raw.githubusercontent.com/torvalds/linux/v6.12/drivers/media/usb/cx231xx/cx231xx-video.c",
+    "sha256": "1177339cfe854c0a244c8e5f325a3fec44e6191f2eed67dd4cb00b8481aaf2f0"
+  },
+  {
+    "file": "references/cx25840-audio.c",
+    "source": "https://raw.githubusercontent.com/torvalds/linux/v6.12/drivers/media/i2c/cx25840/cx25840-audio.c",
+    "sha256": "0ebdd87ea1edf511dd69cb361d2f9080f443e8ed061238d972c0bbcdeaf81a4e"
+  },
+  {
+    "file": "references/cx25840-core.c",
+    "source": "https://raw.githubusercontent.com/torvalds/linux/v6.12/drivers/media/i2c/cx25840/cx25840-core.c",
+    "sha256": "7e4332884aa5f13653924d7a13335483322d210f69b1f8e803084edb8e9de875"
+  },
+  {
+    "file": "references/cx25840-firmware.c",
+    "source": "https://raw.githubusercontent.com/torvalds/linux/v6.12/drivers/media/i2c/cx25840/cx25840-firmware.c",
+    "sha256": "8d2eef716d5881a051eff7f08f137077cbdcff12dc5304ddbcae2fe21c3e7ee2"
+  },
+  {
+    "file": "references/cx231xx-conf-reg.h",
+    "source": "https://raw.githubusercontent.com/torvalds/linux/v6.12/drivers/media/usb/cx231xx/cx231xx-conf-reg.h",
+    "sha256": "b10b985ec347e88fb53eefb9c4fed5e7efa5696797986edd65d5be6aca9e809f"
+  },
+  {
+    "file": "references/cx231xx-dif.h",
+    "source": "https://raw.githubusercontent.com/torvalds/linux/v6.12/drivers/media/usb/cx231xx/cx231xx-dif.h",
+    "sha256": "5d416f86502c3d2cbfefa51d202635698ecba2b3cf525d6564d9b2db39719ff4"
+  },
+  {
+    "file": "references/cx231xx-pcb-cfg.h",
+    "source": "https://raw.githubusercontent.com/torvalds/linux/v6.12/drivers/media/usb/cx231xx/cx231xx-pcb-cfg.h",
+    "sha256": "df08a69d6a34c9054a058c100da5453bb13cd84d5673170eb6592e5c0584f03d"
+  },
+  {
+    "file": "references/cx231xx-reg.h",
+    "source": "https://raw.githubusercontent.com/torvalds/linux/v6.12/drivers/media/usb/cx231xx/cx231xx-reg.h",
+    "sha256": "ce40af2b84049fba2d7609ba7c008c18d69ca6d761a381d098fc05c222ce77b1"
+  },
+  {
+    "file": "references/cx231xx.h",
+    "source": "https://raw.githubusercontent.com/torvalds/linux/v6.12/drivers/media/usb/cx231xx/cx231xx.h",
+    "sha256": "1d72f69438065efab427d2bd8fcd81d52213de8ab394232f6fa97ced748a1114"
+  }
+]
