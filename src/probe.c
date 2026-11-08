@@ -119,7 +119,7 @@ static void usage(const char *program) {
         "  --audio-probe FILE           line PCM, stereo S16_LE 48kHz\n"
         "  --capture pal|secam|ntsc PREFIX   simultaneous video + audio\n"
         "  --calibrate                 AFE calibration (automatic in --capture)\n"
-        "  --seconds 1..3600            capture duration (default 1 second)\n"
+        "  --seconds 0..3600            duration; 0=until signal (default 1 second)\n"
         "  --audio-attenuation-db 0..48 additional PCM attenuation (default 0)\n"
         "  --wake | --wake-device       historical bridge-only experiments\n"
         "  --recover-preview           exact-state recovery for preview-01 only\n"
@@ -176,7 +176,7 @@ int main(int argc, char **argv) {
         else if(!strcmp(argv[i],"--audio-probe") && i+1<argc) { iso_path=argv[++i]; iso_endpoint=3; av_init=2; }
         else if(!strcmp(argv[i],"--seconds") && i+1<argc) {
             char *end=NULL; unsigned long seconds=strtoul(argv[++i],&end,10);
-            if(!*argv[i] || *end || seconds<1 || seconds>3600) { fprintf(stderr,"seconds must be 1..3600\n"); return 64; }
+            if(!*argv[i] || *end || seconds>3600) { fprintf(stderr,"seconds must be 0..3600\n"); return 64; }
             iso_seconds=(unsigned)seconds;
         }
         else if(!strcmp(argv[i],"--video-probe") && i+2<argc) {

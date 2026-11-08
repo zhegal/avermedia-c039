@@ -104,7 +104,9 @@ static int prepare(stream *s,IOUSBDeviceInterface182 **dev,const char *path,int 
     char *logpath=malloc(strlen(path)+13);
     if(!logpath) return 1;
     sprintf(logpath,"%s.packets.csv",path);
-    s->log=fopen(fifo && !telemetry?"/dev/null":logpath,fifo && !telemetry?"w":"wx");
+    int log_fifo=lstat(logpath,&info)==0 && S_ISFIFO(info.st_mode);
+    s->log=fopen(fifo && !telemetry?"/dev/null":logpath,
+        fifo && (!telemetry || log_fifo)?"w":"wx");
     free(logpath);
     if(!s->raw || !s->log) { perror("capture output"); return 1; }
     fputs("bus_frame,microframe,transfer_status,packet_status,length,file_offset\n",s->log);
@@ -167,7 +169,7 @@ static int cleanup(stream *s) {
 }
 int c039_iso_probe(IOUSBDeviceInterface182 **dev,const char *path,
                    int endpoint,unsigned seconds,int fifo_telemetry,int (*cancelled)(void *),void *context) {
-    if((endpoint!=0 && endpoint!=3 && endpoint!=4) || seconds<1 || seconds>3600) return 1;
+    if((endpoint!=0 && endpoint!=3 && endpoint!=4) || seconds>3600) return 1;
     // endpoint=0 captures EP84 and EP83 together, on a shared USB bus timeline.
     stream streams[2]={0}; unsigned count=endpoint?1:2;
     int failed=0,restore_ep=0,restore_ts=0;
@@ -202,13 +204,13 @@ int c039_iso_probe(IOUSBDeviceInterface182 **dev,const char *path,
         restore_ep=1; failed=request(dev,1,0x18,enabled);
     }
     // A fixed whole number of 8ms transfers yields matching USB time spans.
-    unsigned wanted=(seconds*1000)/(PACKETS/8);
+    unsigned wanted=seconds?(seconds*1000)/(PACKETS/8):UINT32_MAX;
     CFAbsoluteTime deadline=CFAbsoluteTimeGetCurrent()+seconds+2;
     while(!failed && !cancelled(context)) {
         int finished=1;
         for(unsigned n=0;n<count;n++) if(streams[n].transfers<wanted) finished=0;
         if(finished) break;
-        if(CFAbsoluteTimeGetCurrent()>deadline) { fprintf(stderr,"iso capture deadline exceeded\n"); failed=1; break; }
+        if(seconds && CFAbsoluteTimeGetCurrent()>deadline) { fprintf(stderr,"iso capture deadline exceeded\n"); failed=1; break; }
         CFRunLoopRunInMode(kCFRunLoopDefaultMode,0.002,false);
         for(unsigned n=0;!failed && n<count;n++) {
             stream *s=&streams[n];

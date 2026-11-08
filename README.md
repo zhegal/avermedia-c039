@@ -10,7 +10,8 @@ USB ID: `07ca:c039`. Hardware decoder ID: `0x5a3e` (Conexant CX23102).
 - Asynchronous isochronous video/audio capture on a shared USB bus timeline.
 - PAL 720×576 UYVY, 25 frames/s, two fields preserved.
 - Stereo signed 16-bit little-endian PCM at 48 kHz.
-- Live video/audio preview through FFmpeg and ffplay.
+- Live NUT/MPEG-TS output to stdout or a new file; FFmpeg/ffplay preview.
+- Bounded queues and in-memory packet telemetry for indefinite streaming.
 - Offline frame assembly, USB timestamp alignment and MPEG-2/MP2 export.
 - Checked control restoration on normal completion and SIGINT/SIGTERM.
 
@@ -35,6 +36,29 @@ make test
 
 The default build produces `build/c039-probe` and an alternative IOUSBHost
 register diagnostic, `build/c039-host-probe`. Tests do not access USB hardware.
+
+## Live stream to FFmpeg
+
+```sh
+python3 tools/stream.py --seconds 60 | ffmpeg -n -f nut -i pipe:0 \
+  -c:v ffv1 -c:a pcm_s16le capture.mkv
+```
+
+NUT carries uncompressed UYVY and stereo PCM. Only media is written to stdout;
+diagnostics go to `build/stream.log`. `--seconds 0` streams until interrupted.
+A slow or stalled output stops capture with an error instead of silently
+dropping frames. Packet metadata uses bounded memory and FIFOs, not CSV files.
+USB arrival alignment does not correct long-term drift or analog decoder latency.
+
+Direct MPEG-2/MP2 recording, without intermediate payload files:
+
+```sh
+python3 tools/stream.py --seconds 60 --format mpegts --field-order tff \
+  --output capture.ts
+```
+
+The field order is an explicit provisional choice. Existing output files are
+refused. Local HTTP/OBS/VLC integration is not included in this checkpoint.
 
 ## Live preview
 
@@ -77,7 +101,7 @@ the video. Use `--audit-only` to verify a capture without writing that copy:
 python3 tools/prepare_capture.py --audit-only captures/test
 ```
 
-Capture duration is 1–3600 seconds. Additional audio attenuation is 0–48 dB;
+Native capture duration is 0–3600 seconds; zero runs until a signal. Additional audio attenuation is 0–48 dB;
 zero leaves the baseline line-input profile unchanged. Digital attenuation
 does not recover clipping introduced upstream.
 
@@ -105,8 +129,10 @@ Physical Composite PAL tests used a menu and moving video with RCA audio.
 | 300-second video | 7,498 complete frames; no internal frame timestamp gaps |
 | 300-second audio | 14,400,068 stereo samples; no full-scale samples at additional −6 dB |
 | Video clock versus nominal 25 fps | Approximately −14.1 ms over 300 seconds |
+| Live pipeline | NUT→FFmpeg decode and direct MPEG-TS recording tested on hardware |
+| Stream shutdown | SIGTERM, early reader exit and a stalled downstream tested; USB restored |
 | Lifecycle | Finite capture, preview SIGTERM, player exit, restart and control restoration tested |
-| Software tests | 8 Python tests; 1,170 injected control-transfer failures; ASan/UBSan run passed |
+| Software tests | 12 Python tests; 1,170 injected control-transfer failures; ASan/UBSan run passed |
 
 Initial and final incomplete fields are discarded. Packet timestamps align
 USB delivery, not the unmeasured internal analog video/audio latency.
@@ -130,6 +156,7 @@ result fields are not treated as immutable state.
 ## Source layout and license
 
 - `src/av_init.c`: bounded AV/AFE/video/audio initialization and rollback.
+- `src/capture_stream.py`: shared bounded streaming engine.
 - `src/iso_probe.c`: asynchronous ISO transport and packet timestamps.
 - `src/probe.c`: device access and capture CLI; `--help` lists modes.
 - `src/bt656.py`: SAV-only/SAV-EAV field assembly.
