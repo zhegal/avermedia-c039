@@ -35,3 +35,26 @@ Pending: physical 0.2.0 PAL/SECAM transition/recovery regression, genuine NTSC3.
 long 0.2.0 capture, calibrated analog lip-sync/field dominance, Windows 10 and clean
 second PC, macOS runtime regression, distribution source completeness/signing and
 universal signed driver provisioning. External OBS/VLC qualification stays removed.
+
+
+## Final local artifacts and checks
+
+Built from clean source commit `530d83dd05de07817a7d567a493d7b1f3f1f1038`.
+69 Python tests passed; native AV/frame/control tests passed; portable ZIP CRC
+passed. Frozen self-test with empty PATH/unavailable Python passed. Isolated
+Setup installation, installed self-test and uninstall each returned zero; no
+USB/audio device was opened, no capture auto-started. Test uninstall removed the
+isolated executable; the retained user media SHA-256 remained unchanged.
+
+Local artifacts under `build/package-0.2.0-snapshot01/`:
+- `C039Recorder-0.2.0-win-x64-Setup.exe`, SHA-256
+  `9c19318dea5dcedc961b1c2d56d987d40d2b5d4235b263c9b4f0fafa49810901`
+- `C039Recorder-portable.zip`, SHA-256
+  `86df2eb2115a26c08c8b5e5796763e87fbb8004585867d948c3c2592bc2c55b4`
+
+Private build evidence: snapshot020-tests.log, package-0.2.0-snapshot01-build.log,
+portable-self-test.json, installed-self-test.json, install-test.log,
+uninstall-test.log, SHA256SUMS.txt and VALIDATION.txt. Source branch published at
+https://github.com/zhegal/avermedia-c039/tree/feature/windows-support .
+No binary assets, private recordings/diagnostics or driver packages uploaded.
+No main merge, tag or GitHub Release created. The application remains closed.
