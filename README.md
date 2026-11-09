@@ -23,6 +23,10 @@ It has not been activated: the current Personal Team cannot provision the
 System Extension capability. C039 is not yet available as a system camera
 or audio input on the test machine.
 
+The immediate target is a standalone tape digitizer using the userspace USB
+backend. That path works without Apple Developer Program membership or a
+Camera Extension. System camera/audio integration is a separate track.
+
 ## Requirements
 
 - macOS and Xcode developer tools with IOKit and IOUSBHost SDKs.
@@ -261,6 +265,8 @@ Physical Composite PAL tests used a menu and moving video with RCA audio.
 | 300-second audio | 14,400,068 stereo samples; no full-scale samples at additional −6 dB |
 | Video clock versus nominal 25 fps | Approximately −14.1 ms over 300 seconds |
 | VCR auto mode | Correct SECAM color and continuous SECAM→PAL transition confirmed by user |
+| Further VCR observation | Logs contain repeated PAL↔SECAM transitions; reverse-transition picture quality is unconfirmed |
+| Unstable VHS input | Preview encountered audio-pipe stalls and missing complete frames; controller restored USB and restarted |
 | Live pipeline | NUT→FFmpeg decode and direct MPEG-TS recording tested on hardware |
 | HTTP clients | Live VLC picture; simultaneous FFmpeg decode, stream inspection and copy recording |
 | Stream shutdown | SIGTERM, early reader exit and a stalled downstream tested; USB restored |
@@ -269,6 +275,25 @@ Physical Composite PAL tests used a menu and moving video with RCA audio.
 
 Initial and final incomplete fields are discarded. Packet timestamps align
 USB delivery, not the unmeasured internal analog video/audio latency.
+The preview restarts above are recovery events, not evidence of uninterrupted
+tape recording. Full-cassette recording is not yet validated.
+
+## Next milestones
+
+Complete and commit/push each milestone with its validation results.
+
+| Order | Work | Completion criterion |
+|---|---|---|
+| 1 | Reliable recording engine | One USB owner serves preview and recording. Signal loss, slow consumers and reconnects produce explicit events and safely finalized recording parts. No silent frame loss or inherited preview cadence corrections in archival output. |
+| 2 | A/V timing and fields | Measure field dominance, analog A/V offset and long-run clock drift. Preserve source samples and timestamps; make any export correction explicit. Validate synchronization on a long recording. |
+| 3 | Full Auto recording | Preserve recording across PAL/SECAM changes. Start a new native-format part for 576/25↔480/29.97 changes. Report transitions and loss of lock. Validate remaining formats when physical signals are available. |
+| 4 | Standalone recorder UI | Live picture and RCA sound, audio meters, Auto/manual standard selection, start/stop recording, format/path selection, duration, disk space and discontinuity counters. Support FFV1/PCM and MPEG-2/MP2 outputs. |
+| 5 | Stability and packaging | Multi-hour tape tests; unplug/replug, no signal, disk full, sleep/wake and interruption checks. Verify recorded parts remain readable. Package a locally usable application and document installation/removal. |
+| Separate | System capture devices | Sign and activate Camera Extension with a suitable Apple Developer team, implement paired CoreAudio RCA input, then validate VLC/OBS/FFmpeg enumeration and capture. |
+| Later | Windows implementation | First inspect the vendor driver's control/status interfaces for Auto. If insufficient, port the shared decoder/capture logic to a Windows USB backend and implement Windows video/audio device integration. |
+
+S-Video selection and physical input validation remain part of completing
+hardware coverage. Every untested standard must remain marked unvalidated.
 
 ## Limitations
 
