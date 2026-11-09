@@ -30,11 +30,22 @@ for 625/50 versus 525/59.94. Preview concealment is not archival continuity.
 
 ## Current implementation boundary
 
-The Windows prototype lists cached USB descriptors and tests open/claim/release,
-with no initialization writes. A libusb control callback maps exact-length
-transfers to the existing C transport contract. It is not a complete streaming
-backend. There is no Windows session_run, isochronous data capture, timestamp
-qualification or live HTTP source yet. See [evidence and build](WINDOWS.md).
+Windows now has a native WinUSB `c039_session_run` implementation with scheduled
+video/PCM reads on one bus-frame timeline, per-packet error checks, bounded
+admission/stop/drain and alternate/register restoration. It reuses shared AV/Auto.
+A 30-second raw check produced 749 complete 576-line frames with no internal
+timing gaps and 240,000 successful packets per endpoint. Cancellation and injected
+consumer failure restore controls; failed/partial raw results cannot be audited
+as successful. See [evidence and build](WINDOWS.md).
+
+The user additionally requested live preview. `tools/preview_windows.py` owns one
+native session and uses bounded display queues, native field weaving and a Tk
+window with decoder/lock status. RGB conversion and horizontal 4:3 display
+correction are preview-only; no deinterlacing or raw capture modification.
+Observed PAL/SECAM profile transitions retained the same USB session/window.
+This is a diagnostic viewer, with no audio playback/archival recording controls.
+Windows live HTTP/encoding integration is still pending; keep the explicit
+CaptureStream Windows refusal until that separate transport edge is implemented.
 
 The initial stage changed no bindings. On 2026-11-09 the user explicitly approved
 a temporary signed WinUSB binding on MI_01 only. That binding and an AVerPola

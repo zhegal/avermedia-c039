@@ -19,6 +19,11 @@ typedef struct {
     void (*standard_changed)(void *,const c039_video_standard *);
     int line_audio;
     unsigned audio_attenuation_db; // 0..48, PATH1_VOLUME half-dB steps.
+    // Opt-in vendor-driver handoff: caller proves exclusive ownership and idle
+    // USB alternates. Only fully powered 0x78 + idle endpoint mask is accepted;
+    // preserve that original power state. Default macOS behavior is unchanged.
+    int allow_powered_idle;
+    void (*signal_changed)(void *,const c039_signal_status *);
 } c039_transport;
 
 // Temporary external AV/AFE/I2S initialization, ID read, then rollback.

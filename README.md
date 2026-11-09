@@ -1,9 +1,10 @@
 # AVerMedia C039 capture for macOS
 
 Windows 10/11 x64 support is in progress on `feature/windows-support`.
-The first Windows build provides USB descriptor/access diagnostics and a
-control-transfer adapter for the shared C initialization logic, **not Windows
-capture yet**. Existing macOS capture remains the working implementation.
+The experimental Windows build now provides native WinUSB raw video/PCM capture,
+hardware Auto, USB descriptor/access diagnostics and a live diagnostic viewer.
+Windows HTTP/encoding integration and long-run qualification are still pending.
+The existing macOS implementation is preserved.
 See [Windows development and limits](docs/WINDOWS.md),
 [architecture/context](docs/PROJECT_CONTEXT.md) and [roadmap](docs/ROADMAP.md).
 

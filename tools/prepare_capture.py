@@ -76,6 +76,9 @@ def main():
     p.add_argument('--audit-only', action='store_true', help='verify timing without writing duplicate raw media')
     args = p.parse_args()
     prefix = str(args.prefix)
+    result_path = Path(prefix + '.result.json')
+    if result_path.exists() and json.loads(result_path.read_text())['return_code'] != 0:
+        raise ValueError('capture failed or was interrupted; refusing to qualify partial raw media')
     video_packets = packets(prefix + '.video.bin.packets.csv')
     video_offsets = video_packets.offsets
     audio_packets = packets(prefix + '.audio.s16le.packets.csv')

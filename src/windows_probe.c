@@ -4,8 +4,10 @@
 #include "usb_libusb.h"
 #include <stdio.h>
 #include <string.h>
+#include "windows_capture_cli.h"
 
 int main(int argc,char **argv) {
+    if(argc>1 && !strcmp(argv[1],"--capture")) return c039_windows_capture_cli(argc,argv);
     if(argc==2 && !strcmp(argv[1],"--list-standards")) {
         putchar('[');
         for(size_t n=0;n<c039_standard_name_count;n++) {

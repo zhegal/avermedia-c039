@@ -76,9 +76,16 @@ static int power(session *s) {
     if(read_reg(s,0x0d,0xf,0x74,b,4)) return 1;
     uint32_t value=b[0]|(uint32_t)b[1]<<8|(uint32_t)b[2]<<16|(uint32_t)b[3]<<24;
     // Do not disturb another capture session or an unexpected power state.
-    if(value & 0x17f) { fprintf(stderr,"refusing non-idle PWR_CTL_EN=%08x\n",value); return 1; }
+    int already_powered=(value&0x17f)==0x78 && s->io->allow_powered_idle;
+    if((value & 0x17f) && !already_powered) { fprintf(stderr,"refusing non-idle PWR_CTL_EN=%08x\n",value); return 1; }
+    if(already_powered) {
+        uint8_t endpoints[4];
+        if(read_reg(s,0x0d,0xf,0x18,endpoints,4)) return 1;
+        if(endpoints[0]&0x3f) { fputs("refusing powered device with active endpoint mask\n",stderr); return 1; }
+        puts("power_state=already-powered-idle (preserving original power controls)");
+    }
     const unsigned flags[]={8,0x40,0x30};
-    for(unsigned i=0;i<3;i++) {
+    for(unsigned i=0;!already_powered && i<3;i++) {
         value|=flags[i];
         for(unsigned j=0;j<4;j++) b[j]=(uint8_t)(value>>(8*j));
         int written=write_reg(s,0x0c,0xf,0x74,b,4);
@@ -214,6 +221,10 @@ static int video_monitor(void *context) {
             if(s->io->standard_changed) s->io->standard_changed(s->io->context,c039_standard(detected));
         }
     } else s->stable_count=0;
+    if(s->io->signal_changed) {
+        c039_signal_status status={detected,s->active_standard,present,hlock,vlock,(b[2]&8)!=0};
+        s->io->signal_changed(s->io->context,&status);
+    }
     printf("signal mode=%s detected=%s fmt=%u present=%u hlock=%u vlock=%u chroma=%u selected=%s\n",
         standard_name(s->io->video_standard),standard_name(detected),fmt,present,hlock,vlock,
         (b[2]&8)!=0,standard_name(s->active_standard));

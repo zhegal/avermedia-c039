@@ -18,6 +18,7 @@ struct c039_session {
     c039_sample_callback payload;
     void *payload_context;
     void (*standard_changed)(void *,const c039_video_standard *);
+    void (*signal_changed)(void *,const c039_signal_status *);
 };
 c039_session *c039_session_create(unsigned standard,int endpoint,unsigned seconds) {
     if((standard!=C039_AUTO && !c039_standard(standard)) || (endpoint!=0 && endpoint!=4) || seconds>3600) return NULL;
@@ -31,9 +32,16 @@ void c039_session_set_attenuation(c039_session *s,unsigned db) { if(s && !s->use
 void c039_session_set_standard_callback(c039_session *s,void (*callback)(void *,const c039_video_standard *)) {
     if(s && !s->used) s->standard_changed=callback;
 }
+void c039_session_set_signal_callback(c039_session *s,void (*callback)(void *,const c039_signal_status *)) {
+    if(s && !s->used) s->signal_changed=callback;
+}
 static void changed(void *context,const c039_video_standard *profile) {
     c039_session *s=context;
     if(s->standard_changed) s->standard_changed(s->payload_context,profile);
+}
+static void signal_changed(void *context,const c039_signal_status *status) {
+    c039_session *s=context;
+    if(s->signal_changed) s->signal_changed(s->payload_context,status);
 }
 static int cancelled(void *context) { return atomic_load(&((c039_session *)context)->stopped); }
 static void delay(void *context,unsigned ms) {
@@ -82,7 +90,7 @@ int c039_session_run(c039_session *s,c039_sample_callback payload,void *context)
     if(!code) {
         c039_transport transport={.context=s,.control=control,.sleep_ms=delay,.cancelled=cancelled,
             .on_ready=ready,.video_standard=s->standard,.standard_changed=changed,
-            .line_audio=s->endpoint==0,.audio_attenuation_db=s->attenuation};
+            .line_audio=s->endpoint==0,.audio_attenuation_db=s->attenuation,.signal_changed=signal_changed};
         uint16_t id=0;
         failed=c039_av_probe(&transport,&id,1);
         IOReturn closed=(*dev)->USBDeviceClose(dev);

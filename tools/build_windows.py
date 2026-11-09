@@ -31,10 +31,15 @@ def main():
     def build(output, sources, extra=()):
         subprocess.run(compiler + flags + list(sources) + list(extra) + ['-o', 'build/' + output], cwd=ROOT, check=True)
 
-    build('c039-probe.exe', ['src/windows_probe.c', 'src/usb_libusb.c', 'src/av_init.c', 'src/video_standard.c'], [str(library)])
+    build('c039-probe.exe', ['src/windows_probe.c', 'src/usb_libusb.c', 'src/av_init.c', 'src/video_standard.c',
+                           'src/capture_windows.c', 'src/windows_capture_cli.c'], [str(library), '-lsetupapi', '-lwinusb'])
     build('c039-driver.exe', ['src/windows_driver.c'], ['-lsetupapi'])
+    build('windows-capture-smoke.exe', ['tests/windows_capture_smoke.c', 'src/capture_windows.c',
+          'src/frame_decoder.c', 'src/av_init.c', 'src/video_standard.c'], ['-lsetupapi', '-lwinusb'])
     shutil.copy2(dll, ROOT / 'build/libusb-1.0.dll')
     build('c039-frame.dll', ['src/frame_decoder.c'], ['-shared'])
+    build('c039-capture.dll', ['src/capture_windows.c', 'src/frame_decoder.c', 'src/av_init.c',
+          'src/video_standard.c'], ['-shared', '-lsetupapi', '-lwinusb'])
     for name, sources in (
         ('test-av-init', ['tests/test_av_init.c', 'src/av_init.c', 'src/video_standard.c']),
         ('test-native-frame', ['tests/test_frame_decoder.c', 'src/frame_decoder.c']),

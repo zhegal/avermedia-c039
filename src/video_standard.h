@@ -11,6 +11,9 @@ typedef struct {
     unsigned format,height,rate_num,rate_den,burst,luma,comb,subcarrier;
 } c039_video_standard;
 typedef struct { const char *name; unsigned id; } c039_standard_alias;
+typedef struct {
+    unsigned detected,selected,present,hlock,vlock,chroma;
+} c039_signal_status;
 extern const c039_standard_alias c039_standard_names[];
 extern const size_t c039_standard_name_count;
 const c039_standard_alias *c039_standard_name_at(size_t index);

@@ -38,6 +38,17 @@ def fixture(prefix, gap=False):
 
 
 class PrepareTests(unittest.TestCase):
+    def test_failed_or_interrupted_native_capture_is_not_qualified(self):
+        with tempfile.TemporaryDirectory() as temp:
+            prefix = Path(temp) / 'capture'; fixture(prefix)
+            for code in (1, 2, 130):
+                Path(str(prefix) + '.result.json').write_text(json.dumps({'return_code': code}))
+                result = subprocess.run([sys.executable, str(ROOT / 'tools/prepare_capture.py'), str(prefix)],
+                                        capture_output=True, text=True)
+                self.assertNotEqual(result.returncode, 0)
+                self.assertIn('refusing to qualify partial raw media', result.stderr)
+                self.assertFalse(Path(str(prefix) + '.aligned.s16le').exists())
+
     def test_aligns_complete_frames_and_stereo_sample_boundary(self):
         with tempfile.TemporaryDirectory() as temp:
             prefix = Path(temp) / 'capture'; fixture(prefix)

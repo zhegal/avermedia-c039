@@ -9,8 +9,9 @@ typedef struct {
     uint8_t bridge[256][4],afe[256],i2s[256],video[4096];
     unsigned calls,fail_at,cancel_at,writes,failures;
     int pll_stuck,power_transaction_error,power_not_applied;
-    unsigned standard,forward_calls;
-    int line_audio;
+    unsigned standard,forward_calls,signal_reports;
+    int line_audio,allow_powered_idle;
+    uint8_t initial_power;
 } mock;
 static int transfer(void *context,int write,uint8_t request,uint16_t value,
                      uint16_t index,uint8_t *data,unsigned size) {
@@ -26,7 +27,7 @@ static int transfer(void *context,int write,uint8_t request,uint16_t value,
         *data=index==0x100?0x3e:0x5a;
     } else {
         uint8_t *p=NULL;
-        if(value==0xf) { assert(index==0x74 && size==4); p=m->bridge[index]; }
+        if(value==0xf) { assert((index==0x74 || index==0x18) && size==4); p=m->bridge[index]; }
         else if(value==0x6029) { assert(index<0x80 && size==1); p=&m->afe[index]; }
         else if(value==0x9825) { assert((index==0xe || index==0xf) && size==1); p=&m->i2s[index]; }
         else if(value==0x8829) {
@@ -81,14 +82,23 @@ static mock initial(void) {
     m.bridge[0x74][1]=2; // Preserve bits outside PWR_MODE_MASK.
     return m;
 }
+static void signal_changed(void *context,const c039_signal_status *status) {
+    mock *m=context;
+    m->signal_reports++;
+    assert(status->detected==c039_standard_detect(m->video[0x40d]&15));
+    assert(status->present==1 && status->hlock==1 && status->vlock==1);
+    assert(c039_standard(status->selected));
+}
 static int run(mock *m) {
     c039_transport io={.context=m,.control=transfer,.sleep_ms=sleep_ms,.cancelled=cancelled,
-        .on_ready=ready,.video_standard=m->standard,.line_audio=m->line_audio};
+        .on_ready=ready,.video_standard=m->standard,.line_audio=m->line_audio,.allow_powered_idle=m->allow_powered_idle,
+        .signal_changed=signal_changed};
     uint16_t id=0;
     return c039_av_probe(&io,&id,1);
 }
 static void restored(mock *m) {
     mock expected=initial();
+    expected.bridge[0x74][0]=m->initial_power;
     assert(!memcmp(m->bridge,expected.bridge,sizeof(m->bridge)));
     assert(!memcmp(m->afe,expected.afe,sizeof(m->afe)));
     assert(!memcmp(m->i2s,expected.i2s,sizeof(m->i2s)));
@@ -113,6 +123,22 @@ int main(void) {
     assert(run(&stuck)!=0); assert(stuck.calls<100);
     mock busy=initial(); busy.bridge[0x74][0]=0x78;
     assert(run(&busy)!=0); assert(busy.writes==0);
+    mock powered=initial(); powered.bridge[0x74][0]=powered.initial_power=0x78;
+    powered.allow_powered_idle=1; powered.standard=C039_AUTO; powered.line_audio=1;
+    assert(run(&powered)==0); restored(&powered);
+    unsigned powered_calls=powered.calls;
+    for(unsigned i=1;i<=powered_calls;i++) {
+        mock m=initial(); m.bridge[0x74][0]=m.initial_power=0x78;
+        m.allow_powered_idle=1; m.standard=C039_AUTO; m.line_audio=1; m.fail_at=i;
+        assert(run(&m)!=0);
+        if(i<=powered.forward_calls) restored(&m);
+    }
+    printf("PASS: %u powered-idle handoff transfer failures; original powered state preserved\n",powered_calls);
+    mock active=initial(); active.bridge[0x74][0]=0x78; active.bridge[0x18][0]=0xc;
+    active.allow_powered_idle=1;
+    assert(run(&active)!=0); assert(!active.writes);
+    mock partial_power=initial(); partial_power.bridge[0x74][0]=0x70; partial_power.allow_powered_idle=1;
+    assert(run(&partial_power)!=0); assert(!partial_power.writes);
     mock applied=initial(); applied.power_transaction_error=1;
     assert(run(&applied)==0); restored(&applied);
     mock not_applied=initial(); not_applied.power_transaction_error=1; not_applied.power_not_applied=1;
@@ -128,6 +154,6 @@ int main(void) {
         }
     }
     mock automatic=initial(); automatic.standard=4;
-    assert(run(&automatic)==0); restored(&automatic);
+    assert(run(&automatic)==0); restored(&automatic); assert(automatic.signal_reports==30);
     printf("PASS: %u transfer failures across all nine decoder profiles/Auto+audio, cancellation, bounded PLL, busy-state refusal\n",injected);
 }

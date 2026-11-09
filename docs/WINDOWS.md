@@ -202,3 +202,106 @@ Local evidence: `driver-plan.txt`, `driver-bind.log`, `driver-restore.log`,
 API references: [DiInstallDevice](https://learn.microsoft.com/en-us/windows/win32/api/newdev/nf-newdev-diinstalldevice),
 [INF catalog verification](https://learn.microsoft.com/en-us/windows/win32/api/setupapi/nf-setupapi-setupverifyinffilew),
 [setup-class property changes](https://learn.microsoft.com/en-us/windows/win32/api/setupapi/nf-setupapi-setupdisetdeviceregistrypropertyw).
+
+## Native ISO capture and requested preview (2026-11-09)
+
+`src/capture_windows.c` implements the existing `capture_device.h` session API
+against WinUSB, selected only by the Windows build. Associated-interface IDs and
+idle alternates are checked before hardware writes. Video interface 4/alt 3 and
+PCM interface 3/alt 1 are selected **before** registering any ISO buffers.
+Thirty-two bounded 64-packet buffers per stream give 256 ms scheduling headroom.
+Both endpoints start at the same future USB frame, and each read explicitly
+specifies its start frame with `WinUsb_ReadIsochPipe`. The returned next frame
+must match the requested 8 ms span. Packet timestamps use scheduled frame plus
+microframe*125 us, not application wake-up time; a 64-bit schedule extends the
+32-bit Windows frame counter. This is USB delivery alignment, not a measurement
+of internal analog A/V latency.
+
+Every packet status, length and buffer offset is checked. A USB error or rejected
+consumer callback ends capture explicitly. Stop closes admission, restores the
+endpoint mask and drains already scheduled reads without resubmitting. All
+streams unregister before **any** associated alternate is restored. The bounded
+drain retains buffers/handles on timeout rather than freeing live I/O memory.
+Bridge TS-mode/endpoint readback and the shared AV register journal verify
+restoration; cleanup errors return 2. No USB reset or driver operation occurs
+in capture. `CancelIoEx`/`AbortPipe` were experimentally found to invalidate ISO
+registrations on this host; normal stop instead waits out the bounded schedule.
+
+AVerPola leaves the bridge fully powered (0x78) after its stop. The default
+shared initialization guard still refuses that state for all existing callers.
+The Windows transport opts into a new already-powered-idle path only after an
+exclusive device open and zero alternate checks; the shared engine also verifies
+an idle endpoint mask. It preserves the original power state instead of cycling
+it. Unknown partial power states and active endpoints still fail before writes.
+882 injected transfer failures exercise this path in addition to the original
+4,139-case coverage. The optional signal-status callback separates decoder
+detected format/lock from selected profile; existing macOS callers need not use
+it, and their initialization behavior remains unchanged.
+
+Raw diagnostic (new prefixes only, 1-60 seconds and a checked disk budget):
+
+```powershell
+.\build\c039-probe.exe --capture auto build/captures/example --seconds 3
+python tools/prepare_capture.py --audit-only build/captures/example
+```
+
+The diagnostic writes payloads, per-packet CSV and `.result.json`. It refuses
+overwrite. Nonzero, interrupted or malformed result metadata prevents the
+offline preparation tool from qualifying a partial capture as successful.
+Manual formats are accepted through the shared profile table. Auto starts at
+576/25; an incompatible 625/50 to 525/59.94 geometry change ends this fixed-format
+raw diagnostic explicitly. No silent resize/frame-rate change. Longer/disk-bound
+archive encoding belongs to the subsequent streaming stage, not this raw CLI.
+
+Physical Windows evidence, all bounded:
+
+| Check | Result / scope |
+|---|---|
+| 3-second Auto raw run | 375 transfers and 24,000 packets per endpoint; zero packet errors; cleanup/rollback verified |
+| 3-second offline audit | 74 complete 720x576 frames; zero short lines/internal timing gaps; 143,996 source stereo PCM samples |
+| 30-second Auto raw run | 3,750 transfers and 240,000 packets per endpoint; zero packet errors; cleanup/rollback verified |
+| 30-second offline audit | 749 complete frames; frame deltas 39.875-40.125 ms; 1,440,012 source stereo samples; estimated video-span drift -0.625 ms |
+| Stop during active capture | Native API stop after 1.2 s; scheduled drain, zero packet errors, register/alternate restoration and success return |
+| Injected consumer failure | Failure at the 2,000th video callback propagates as result 1; bounded drain and rollback succeed |
+| Reuse after stop/failure | Later finite capture succeeds without rebinding/reopening another USB owner |
+| Software | Strict-warning builds; C parser/control/AV tests, added powered-idle/signal-status cases and all 31 Python tests pass |
+
+Initial/final incomplete fields are discarded, not filled. The 30-second run
+discarded one initial pair; temporal field dominance, motion cadence and analog
+lip-sync remain uncalibrated. No long-run, unplug or Windows 10 qualification is
+claimed. The two failed startup/cleanup experiments were retained and are not
+included as successful captures. Evidence is local under `build/captures/`:
+`winusb-auto-01` through `04`, `winusb-tape-auto-30s`, `smoke-cancel-02` and
+`smoke-sink-failure`, plus `build/python-tests-iso.txt` and
+`build/test-av-init-iso.txt`. Test media is retained.
+
+The user additionally requested a visible preview while changing the tape:
+
+```powershell
+python tools/preview_windows.py --standard auto
+```
+
+The Tk window owns one C session via `src/windows_native.py` and
+`build/c039-capture.dll`; it does not launch another capture tool. Complete
+interlaced UYVY frames are converted to RGB for display only. Horizontal display
+aspect correction shows 4:3; the source is never deinterlaced or modified.
+Two queued raw frames and one queued RGB image bound display memory. Replaced
+images count as preview drops and do not represent or conceal archival loss.
+Missing complete fields retain the last picture with a waiting status. The
+window shows detected standard and H/V lock, separately from the selected Auto
+mode. PCM is captured but this diagnostic viewer does not play it yet.
+
+Observed during the ongoing physical preview: PAL->SECAM->PAL->SECAM profile
+events in the same native session (one pair of ISO setup lines, no restart),
+followed by visible color SECAM picture and lock. The earlier PAL observation
+had severe disturbances and waiting intervals; this does not qualify general
+PAL/SECAM picture quality or archived transitions. Native and Python parsers
+are software-equivalent in tests; user acceptance and broader tape conditions
+remain separate. The preview has no archival recording controls. Close it before
+starting an independent raw diagnostic: USB remains exclusively owned.
+
+Local preview logs: `build/preview-windows.log` and `.err.log`. Startup was checked
+visually with the computer-use skill. Windows live MPEG-TS/HTTP integration
+remains pending, so `CaptureStream.run` still refuses that unsupported path.
+
+Timing API reference: [scheduled ISO read and returned frame semantics](https://learn.microsoft.com/en-us/windows/win32/api/winusb/nf-winusb-winusb_readisochpipe).

@@ -10,14 +10,16 @@ Updated 2026-11-09. Work only on `feature/windows-support`; no main merge.
    open/claim; restoring AVerPola recovers DirectShow A/V and a 75-frame short
    capture. Parent and MI_00 unchanged. This is an explicit machine-specific
    maintenance experiment, not an installer or automatic binding in capture.
-3. Implement Windows ISO scheduling for both EP84 video and EP83 PCM, bounded
-   queues, per-packet errors, common bus timestamps, cancellation and drain.
-   Descriptor layout on Windows must be checked rather than copied from IOKit.
-   libusb completion time is insufficient evidence of USB packet time. Evaluate
-   direct WinUSB scheduled ISO APIs before choosing the final timing contract.
-4. Connect unchanged AV initialization and Auto. Validate same-family PAL/SECAM
-   changes without restart. Publish events and fail or split explicit native
-   parts across geometry/rate families. Never silently scale or change CFR.
+3. Native WinUSB ISO scheduling, common packet times, finite capture, cancellation
+   and consumer-error drain implemented and short hardware-tested. Thirty-second
+   raw audit: 749 complete frames, zero packet errors/internal frame gaps. See
+   WINDOWS.md. Fault-injection/larger disturbance and multi-hour limits remain.
+4. Shared AV/Auto connected, including an explicit already-powered-idle handoff
+   from AVerPola. Default macOS power guard unchanged; 882 additional injected
+   handoff errors tested. PAL/SECAM transitions observed in one live Windows
+   preview session, as requested by the user. Raw diagnostics reject geometry
+   family changes; native viewer accepts both heights. Physical 525-line inputs,
+   field dominance, analog A/V sync and archival transition tests remain pending.
 5. Replace the POSIX transport edge in the Python pipeline; reuse the frame
    decoder, strict timing rules, MPEG-2/MP2 command construction and HTTP broker.
    Verify 8-12 Mbit/s MPEG-2, MP2 256 kbit/s, multiple clients, /status and /health.
