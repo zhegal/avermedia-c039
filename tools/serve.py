@@ -35,6 +35,25 @@ def main():
         p.error('port must be 1024..65535')
     if args.replay and not args.replay.is_file():
         p.error('replay file does not exist')
+    if os.name == 'nt' and not args.replay:
+        if not args.field_order:
+            p.error('Windows MPEG-TS requires explicit --field-order tff or bff')
+        if args.preview:
+            if args.seconds:
+                p.error('--preview is stopped manually; use --seconds only for a bounded headless check')
+            from preview_windows_direct import main as preview_main
+            forwarded = [sys.argv[0], '--standard', args.standard, '--http', '--port', str(args.port),
+                         '--field-order', args.field_order, '--video-bitrate', str(args.video_bitrate)]
+            if args.strict:
+                forwarded.append('--strict-http')
+            previous = sys.argv
+            try:
+                sys.argv = forwarded; return preview_main()
+            finally:
+                sys.argv = previous
+        from windows_http import run_headless
+        return run_headless(standard=args.standard, port=args.port, field_order=args.field_order,
+                            video_bitrate=args.video_bitrate, strict=args.strict, seconds=args.seconds)
     try:
         engine = None if args.replay else CaptureStream(standard=args.standard, seconds=args.seconds,
             attenuation=args.audio_attenuation_db, container='mpegts', field_order=args.field_order,

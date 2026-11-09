@@ -34,3 +34,8 @@ The hardware smoke tool runs only with explicit `--hardware`; automated tests
 must not open USB. Windows 10, physical NTSC/regional formats, controlled A/V/field
 calibration and long archival capture remain pending unless dated evidence says
 otherwise. Source playback observed by the user is not an independent sync test.
+
+Windows shared HTTP/strict recording now subscribe to the persistent native owner.
+Keep diagnostics private (LOCALAPPDATA/C039Recorder/Diagnostics), media folders clean,
+and numbered retries explicit; manual recording Stop disarms retry. Preview-only
+BWDIF/scaling must never enter archive/HTTP encoding. See dated stage notes.

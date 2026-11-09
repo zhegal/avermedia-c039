@@ -140,9 +140,9 @@ class CaptureStream:
                  container='nut', field_order=None, conceal_gaps=False, auto_geometry='pal', video_bitrate=12):
         if standard not in NAMES or not 0 <= seconds <= 3600 or auto_geometry not in ('pal', 'ntsc'):
             raise ValueError('invalid standard or duration')
-        if not 0 <= attenuation <= 48 or container not in ('nut', 'mpegts'):
+        if not 0 <= attenuation <= 48 or container not in ('nut', 'mpegts', 'mpeg'):
             raise ValueError('invalid attenuation or container')
-        if field_order not in (None, 'tff', 'bff') or (container == 'mpegts' and field_order is None):
+        if field_order not in (None, 'tff', 'bff') or (container != 'nut' and field_order is None):
             raise ValueError('MPEG-TS requires explicit tff/bff field order')
         if video_bitrate not in range(8, 13):
             raise ValueError('video bitrate must be 8..12 Mbit/s')
@@ -183,8 +183,14 @@ class CaptureStream:
         else:
             cmd += ['-c:v', 'mpeg2video', '-pix_fmt', 'yuv422p', '-b:v', f'{self.video_bitrate}M',
                     '-flags', '+ilme+ildct', '-alternate_scan', '1', '-g', '12', '-bf', '0',
-                    '-c:a', 'mp2', '-b:a', '256k', '-mpegts_flags', '+pat_pmt_at_frames',
+                    '-aspect', '4:3', '-c:a', 'mp2', '-b:a', '256k',
                     '-muxdelay', '0', '-muxpreload', '0']
+            if self.container == 'mpegts':
+                cmd += ['-mpegts_flags', '+pat_pmt_at_frames']
+            if getattr(self, 'timestamp_offset', 0):
+                cmd += ['-output_ts_offset', f'{self.timestamp_offset:.6f}']
+            if self.container == 'mpegts' and getattr(self, 'initial_discontinuity', False):
+                cmd += ['-mpegts_flags', '+initial_discontinuity']
         return cmd + ['-flush_packets', '1', '-f', self.container, 'pipe:1']
 
     def run(self, output, log_path, *, allow_disconnect=False):

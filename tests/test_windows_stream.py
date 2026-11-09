@@ -17,6 +17,7 @@ class SyntheticSession:
     gap = False
     incompatible = False
     opened = 0
+    height, numerator, denominator, packets_per_frame = 576, 25, 1, 320
 
     def __init__(self, **options):
         self.packet = options['on_packet']; self.standard = options['on_standard']
@@ -24,16 +25,17 @@ class SyntheticSession:
         type(self).opened += 1
 
     def run(self):
-        self.standard(3, 480, 30000, 1001) if self.incompatible else self.standard(1, 576, 25, 1)
+        self.standard(3, 480, 30000, 1001) if self.incompatible else self.standard(
+            3 if self.height == 480 else 1, self.height, self.numerator, self.denominator)
         stamp = 1000000
         for frame in range(5):
             raw = b''.join(b'\xff\0\0' + bytes([0x80 | (field << 6)]) +
                            bytes([16 + frame * 8 + field]) * 1440
-                           for field in (0, 1) for _ in range(288))
-            for packet in range(320):
+                           for field in (0, 1) for _ in range(self.height // 2))
+            for packet in range(self.packets_per_frame):
                 if self.stopped.is_set():
                     self.last_result = 0; return 0
-                begin, end = len(raw) * packet // 320, len(raw) * (packet + 1) // 320
+                begin, end = len(raw) * packet // self.packets_per_frame, len(raw) * (packet + 1) // self.packets_per_frame
                 data = b'' if self.gap and frame == 2 else raw[begin:end]
                 self.packet(4, data, stamp)
                 self.packet(3, b'\x10\0\xf0\xff' * 6, stamp)
@@ -59,7 +61,8 @@ class WindowsStreamIntegration(unittest.TestCase):
         folder = ROOT / 'build/windows-stream-tests' / uuid.uuid4().hex
         folder.mkdir(parents=True)
         engine = CaptureStream(standard='auto', seconds=1, container='mpegts', field_order='tff',
-                               conceal_gaps=conceal, video_bitrate=8)
+                               conceal_gaps=conceal, video_bitrate=8,
+                               auto_geometry='ntsc' if factory.height == 480 else 'pal')
         with (folder / 'synthetic.ts').open('xb') as output:
             code = run_windows(engine, output, folder / 'stream.log', native_factory=factory)
         return code, engine, folder
@@ -104,3 +107,18 @@ class WindowsStreamIntegration(unittest.TestCase):
         self.assertNotEqual(code, 0)
         self.assertTrue(any('geometry/rate family changed' in error for error in engine.errors), engine.errors)
         self.assertEqual(engine.stats.video_frames, 0)
+
+    def test_ntsc_uses_native_geometry_fractional_rate_and_sample_trim(self):
+        class NTSC(SyntheticSession):
+            height, numerator, denominator, packets_per_frame = 480, 30000, 1001, 267
+        code, engine, folder = self.execute(NTSC)
+        self.assertEqual(code, 0, engine.errors)
+        self.assertEqual(engine.stats.video_frames, 5)
+        self.assertEqual(engine.stats.audio_bytes, 8008 * 4)
+        info = json.loads(subprocess.check_output(['ffprobe', '-v', 'error', '-count_frames',
+            '-show_streams', '-of', 'json', str(folder / 'synthetic.ts')]))['streams']
+        video = info[0]
+        self.assertEqual((video['width'], video['height'], video['r_frame_rate'], video['field_order']),
+                         (720, 480, '30000/1001', 'tt'))
+        self.assertEqual(int(video['nb_read_frames']), 5)
+        subprocess.run(['ffmpeg', '-v', 'error', '-i', str(folder / 'synthetic.ts'), '-f', 'null', '-'], check=True)

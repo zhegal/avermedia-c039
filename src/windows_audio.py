@@ -40,7 +40,7 @@ class PcmMonitor:
         self.lock = threading.Lock(); self.handle = W.HANDLE()
         fmt = Format(1, 2, 48000, 192000, 4, 16, 0)
         self.check(self.api.waveOutOpen(C.byref(self.handle), 0xffffffff, C.byref(fmt), 0, 0, 0), 'open PCM monitor')
-        self.buffers = [C.create_string_buffer(self.block_bytes) for _ in range(12)]
+        self.buffers = [C.create_string_buffer(self.block_bytes) for _ in range(16)]
         self.headers = []
         for data in self.buffers:
             header = Header(); header.data = C.addressof(data); header.length = self.block_bytes
@@ -74,7 +74,7 @@ class PcmMonitor:
 
     def start_if_ready(self):
         with self.lock:
-            if not self.playing and self.submitted >= 5760:  # 120 ms startup headroom.
+            if not self.playing and self.submitted >= 9600:  # 200 ms includes preview deinterlacer latency.
                 self.check(self.api.waveOutRestart(self.handle), 'start PCM monitor')
                 self.playing = True
 

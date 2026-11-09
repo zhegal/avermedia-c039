@@ -26,6 +26,16 @@ class TransportBroker:
         self.pending = bytearray()
         self.ended = False
         self.bytes = self.slow_clients = 0
+        self.segments = 0
+
+    def begin_segment(self):
+        """Announce a new explicit TS part without closing existing clients."""
+        with self.changed:
+            discarded = len(self.pending)
+            self.pending.clear(); self.tables.clear(); self.gop.clear()
+            self.segments += 1
+            self.changed.notify_all()
+            return discarded
 
     def publish(self, data):
         with self.changed:
@@ -96,7 +106,7 @@ class TransportBroker:
         with self.changed:
             return dict(ready=bool(self.gop) and not self.ended, clients=len(self.clients),
                         slow_clients=self.slow_clients, transport_bytes=self.bytes,
-                        replay_bytes=len(self.gop), ended=self.ended)
+                        replay_bytes=len(self.gop), ended=self.ended, segments=self.segments)
 
 
 def make_server(port, broker, status=None):

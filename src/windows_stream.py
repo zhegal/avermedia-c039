@@ -34,6 +34,7 @@ def run_windows(engine, output, log_path, *, allow_disconnect=False, native_fact
                  last_video_usb_us=None, video_clock_drift_us=0, first_audio_usb_us=None,
                  last_audio_usb_us=None, audio_clock_drift_samples=0)
     state['preview_partial_frames'] = 0
+    state['written_video_frames'] = state['written_audio_samples'] = 0
     engine.windows_status = state
     engine.latest_signal = None
 
@@ -57,11 +58,29 @@ def run_windows(engine, output, log_path, *, allow_disconnect=False, native_fact
                         pass
 
     def packet(endpoint, data, stamp):
-        if engine.stopping.is_set():
+        if engine.stopping.is_set() and (endpoint == 4 or engine.errors):
             return  # Admission closed; queued accepted data still drains.
         if endpoint not in (3, 4):
             raise StreamError('unexpected USB endpoint')
         enqueue(packet_queues[0 if endpoint == 4 else 1], (data, stamp))
+
+    def batch(endpoint, data, descriptors, stamp):
+        if engine.stopping.is_set() and (endpoint == 4 or engine.errors):
+            return
+        if endpoint not in (3, 4):
+            raise StreamError('unexpected USB endpoint')
+        enqueue(packet_queues[0 if endpoint == 4 else 1], (data, descriptors, stamp))
+
+    def packets(target):
+        while (item := target.get()) is not None:
+            if len(item) == 2:
+                yield item
+            else:
+                data, descriptors, first = item
+                for n, (offset, length, status) in enumerate(descriptors):
+                    if status or offset + length > len(data):
+                        raise StreamError('invalid native USB batch descriptor')
+                    yield data[offset:offset + length], first + n * 125
 
     def standard(profile_id, height, numerator, denominator):
         state['standard_events'].append(dict(id=profile_id, height=height, rate=f'{numerator}/{denominator}'))
@@ -110,7 +129,7 @@ def run_windows(engine, output, log_path, *, allow_disconnect=False, native_fact
         decoder_class = PreviewDecoder if engine.conceal_gaps else Decoder
         decoder = decoder_class(720, engine.height, decoded.append, frame_event)
         try:
-            while (item := packet_queues[0].get()) is not None:
+            for item in packets(packet_queues[0]):
                 if engine.errors:
                     continue
                 data, stamp = item
@@ -137,7 +156,7 @@ def run_windows(engine, output, log_path, *, allow_disconnect=False, native_fact
             windows[0].close(); video_done.set(); finish(media_queues[0])
 
     def audio():
-        pending = bytearray(); offset = 0; previous_packet = None; skip = None
+        pending = bytearray(); offset = 0; previous_packet = None; skip = None; pcm_started = False
         numerator, denominator = map(int, engine.rate.split('/'))
 
         def release(final=False):
@@ -150,10 +169,13 @@ def run_windows(engine, output, log_path, *, allow_disconnect=False, native_fact
                 state['audio_sent'] += count; engine.stats.audio_bytes += count
 
         try:
-            while (item := packet_queues[1].get()) is not None:
+            for item in packets(packet_queues[1]):
                 if engine.errors:
                     continue
                 data, stamp = item
+                if not data and pcm_started and not engine.conceal_gaps:
+                    raise StreamError('missing PCM USB packet after audio started; refusing archival sample loss')
+                pcm_started |= bool(data)
                 if len(data) % 4 or (previous_packet is not None and stamp - previous_packet != 125):
                     raise StreamError('PCM sample boundary or USB packet timeline is discontinuous')
                 previous_packet = stamp
@@ -197,6 +219,10 @@ def run_windows(engine, output, log_path, *, allow_disconnect=False, native_fact
             pipes[index].connect()
             while (item := media_queues[index].get()) is not None:
                 pipes[index].write(item)
+                if index == 0:
+                    state['written_video_frames'] += 1
+                else:
+                    state['written_audio_samples'] += len(item) // 4
         except Exception as error:
             state['pipe_errors'].append(str(error))
             engine.fail(f'FFmpeg input pipe {index}: {error}')
@@ -230,7 +256,7 @@ def run_windows(engine, output, log_path, *, allow_disconnect=False, native_fact
         try:
             engine.native = native_factory(standard=engine.standard, seconds=engine.seconds,
                 attenuation=engine.attenuation, on_packet=packet, on_standard=standard,
-                on_signal=lambda value: setattr(engine, 'latest_signal', value), decode_frames=False)
+                on_signal=lambda value: setattr(engine, 'latest_signal', value), decode_frames=False, on_batch=batch)
             command = engine.mux_command(pipes[0].path, pipes[1].path); command[0] = ffmpeg
             engine.mux = subprocess.Popen(command, stdout=output, stderr=log,
                                           creationflags=subprocess.CREATE_NO_WINDOW)
@@ -283,6 +309,15 @@ def run_windows(engine, output, log_path, *, allow_disconnect=False, native_fact
                 engine.errors.append('FFmpeg muxer failed')
             if not engine.requested_stop and not closed and (not state['output_frames'] or not engine.stats.audio_bytes):
                 engine.errors.append('no complete video/audio output')
+            if not engine.errors and not closed:
+                numerator, denominator = map(int, engine.rate.split('/'))
+                expected_audio = state['output_frames'] * 48000 * denominator // numerator
+                if state['written_video_frames'] != state['output_frames']:
+                    engine.errors.append('accepted and written video frame counts differ')
+                if state['written_audio_samples'] * 4 != engine.stats.audio_bytes:
+                    engine.errors.append('accepted and written PCM sample counts differ')
+                if state['written_audio_samples'] != expected_audio:
+                    engine.errors.append('PCM does not cover the admitted video duration')
             summary = dict(asdict(engine.stats), windows=state, signal=engine.latest_signal,
                            errors=engine.errors, stopped=engine.requested_stop, downstream_closed=closed)
             print('stream_summary ' + json.dumps(summary), file=log, flush=True)

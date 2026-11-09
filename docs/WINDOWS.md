@@ -390,3 +390,33 @@ was deleted. No additional driver/security changes were made.
 
 Audio APIs: [waveOut position and supported clock units](https://learn.microsoft.com/en-us/windows/win32/api/mmeapi/nf-mmeapi-waveoutgetposition),
 [waveOut PCM device open](https://learn.microsoft.com/en-us/windows/win32/api/mmeapi/nf-mmeapi-waveoutopen).
+
+## Recording output folder (2026-11-09)
+New Windows strict recordings keep only media in the selected output folder. Logs and session manifests live under LOCALAPPDATA/C039Recorder/Diagnostics in unique private directories. Existing sidecars/media are retained. Success and source-gap failure regression tests assert a media-only output directory; these are synthetic, not new hardware qualification. The running preview must be closed manually before loading this change.
+
+
+## Shared Windows HTTP and recording stage (2026-11-09)
+
+Implemented one persistent native source with bounded subscriptions for preview,
+HTTP and strict recording. HTTP reuses the existing broker and loopback endpoints;
+encoder parts mark geometry/epoch discontinuities without closing the viewer.
+Recording can remain armed across source breaks and resume in separate numbered
+media files; manual Stop disarms it. Failed parts and gap diagnostics are retained.
+Only media is written to the chosen output folder; private logs/manifests are under
+LOCALAPPDATA/C039Recorder/Diagnostics. Existing user sidecars are not deleted.
+The viewer adds a selectable/copyable URL, resizable 4:3/fullscreen display and
+optional preview-only BWDIF. MPEG-2 output signals DAR 4:3 without pixel resizing.
+Pillow is now required for this developer viewer; portable packaging is pending.
+
+Validation: 51 Python tests pass, including synthetic two-client HTTP, PAL/NTSC
+encoder-part transitions, full strict-file decode, media-only success/failure
+folders and auto-retry/manual-disarm control. No USB is opened by these tests.
+A prior physical 3-second shared recording retained 74 pictures and passed the
+then-current timing/count checks; its old DAR was 5:4, so it does not qualify the
+new aspect fix. Updated viewer PID 23368 was launched only after user manual Close;
+HTTP reported ready with native SECAM 720x576/25, one encoder part and no reported
+encoder errors at the check. Visual/audio acceptance of this latest version,
+physical multi-client/NTSC, long strict recording and Windows 10 remain pending.
+No installer, driver/security change, second USB owner or desktop automation.
+This section supersedes earlier statements that shared HTTP/recording were pending
+implementation; earlier evidence retains its original limited scope.
