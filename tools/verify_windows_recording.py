@@ -5,6 +5,10 @@ import json
 from pathlib import Path
 import shutil
 import subprocess
+import sys
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[1] / 'src'))
+from runtime_paths import ffmpeg_path
 
 
 def verify(manifest, *, inspect_interrupted=False):
@@ -13,7 +17,7 @@ def verify(manifest, *, inspect_interrupted=False):
     interrupted = state.get('state') != 'captured-unverified' or state.get('return_code') != 0 or bool(state.get('errors'))
     if interrupted and not (inspect_interrupted and state.get('state') == 'failed'):
         raise ValueError('recording is incomplete/failed; refusing successful archival qualification')
-    ffprobe = shutil.which('ffprobe')
+    ffprobe = ffmpeg_path('ffprobe')
     if not ffprobe:
         raise RuntimeError('ffprobe is required for full offline verification')
     result = subprocess.run([ffprobe, '-v', 'error', '-err_detect', 'explode', '-show_frames', '-show_streams',

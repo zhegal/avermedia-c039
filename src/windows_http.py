@@ -10,6 +10,7 @@ import time
 from capture_stream import CaptureStream, ROOT
 from http_stream import TransportBroker, make_server
 from windows_stream import run_windows
+from runtime_paths import diagnostics_root
 
 
 class LiveHttpSource:
@@ -27,7 +28,7 @@ class LiveHttpSource:
         self.server_thread = threading.Thread(target=self.server.serve_forever, daemon=True)
         self.thread = threading.Thread(target=self._run, daemon=True)
         self.started = time.monotonic()
-        self.log_folder = ROOT / 'build/http-source' / str(time.time_ns())
+        self.log_folder = diagnostics_root() / 'Http' / str(time.time_ns())
         self.log_folder.mkdir(parents=True)
 
     def status(self):

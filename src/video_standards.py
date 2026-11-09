@@ -4,11 +4,13 @@ import json
 import os
 from pathlib import Path
 import subprocess
+from runtime_paths import binary_path
 
-_probe = Path(__file__).resolve().parents[1] / ('build/c039-probe.exe' if os.name == 'nt' else 'build/c039-probe')
+_probe = binary_path('c039-probe.exe' if os.name == 'nt' else 'c039-probe')
 if not _probe.is_file():
     raise RuntimeError('build/c039-probe is required; run make first')
-STANDARDS = {row['name']: row for row in json.loads(subprocess.check_output([str(_probe), '--list-standards']))}
+STANDARDS = {row['name']: row for row in json.loads(subprocess.check_output([str(_probe), '--list-standards'],
+    **({'creationflags': subprocess.CREATE_NO_WINDOW} if os.name == 'nt' else {})))}
 NAMES = tuple(STANDARDS)
 FIXED_NAMES = tuple(name for name in NAMES if name != 'auto')
 

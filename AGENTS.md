@@ -52,3 +52,10 @@ Latest scope (2026-11-10): single-window preview/audio/record is accepted; do no
 reinstate an OBS/VLC/FFmpeg validation stage. Physical NTSC is deferred for lack
 of a known tape. Preserve last-folder/container preferences and fresh local
 YYYY-MM-DD_HH-MM-SS recording defaults; no automatic recording on startup.
+
+2026-11-10: user approved preparation of a personal-test installer after capture
+checks and accepted dialog defaults. See docs/WINDOWS_PACKAGING.md. Test Setup
+for already provisioned WinUSB is allowed; universal driver provisioning and
+public/signing/source readiness remain pending. Never start installed capture
+alongside the active development viewer. Frozen component paths must fail closed;
+uninstall preserves recordings/preferences and never changes drivers.

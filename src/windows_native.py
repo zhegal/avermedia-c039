@@ -4,6 +4,7 @@ import ctypes as C
 import threading
 import struct
 from pathlib import Path
+from runtime_paths import binary_path
 
 
 class Profile(C.Structure):
@@ -26,7 +27,7 @@ BATCH = C.CFUNCTYPE(C.c_int, C.c_void_p, C.c_int, C.c_void_p, C.c_size_t,
 class NativeSession:
     def __init__(self, *, standard='auto', seconds=0, attenuation=6, on_frame=None,
                  on_signal=None, on_packet=None, on_standard=None, decode_frames=True, on_batch=None):
-        path = Path(__file__).resolve().parents[1] / 'build/c039-capture.dll'
+        path = binary_path('c039-capture.dll')
         self.lib = C.CDLL(str(path))
         self.ownership_lock = threading.Lock()
         lib = self.lib

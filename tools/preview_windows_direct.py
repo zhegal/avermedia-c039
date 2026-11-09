@@ -20,6 +20,7 @@ from windows_audio import PcmMonitor
 from windows_preview import PreviewCapture, put_latest
 from preview_display import fit_4x3, rgb_filter
 from recording_preferences import RecordingPreferences
+from runtime_paths import ffmpeg_path, default_recordings_folder
 
 
 def main():
@@ -37,7 +38,7 @@ def main():
         parser.error('--http requires explicit --field-order tff or bff')
     if args.record and not args.field_order:
         parser.error('--record requires explicit --field-order tff or bff')
-    ffmpeg = shutil.which('ffmpeg')
+    ffmpeg = ffmpeg_path()
     if not ffmpeg:
         parser.error('FFmpeg is required for preview RGB conversion')
     root = tk.Tk(); root.title('C039 — persistent A/V preview'); root.geometry('790x790')
@@ -194,7 +195,7 @@ def main():
         if recording[0] and not recording[0].done.is_set():
             return
         if path is None:
-            folder = ROOT/'build/recordings'; folder.mkdir(exist_ok=True)
+            folder = default_recordings_folder(); folder.mkdir(parents=True, exist_ok=True)
             path = filedialog.asksaveasfilename(parent=root, title='Новая строгая запись',
                 **recording_preferences.dialog_options(folder))
             if not path:

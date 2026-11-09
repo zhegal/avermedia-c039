@@ -144,3 +144,18 @@ The user's latest private session seeds K:/VHS Recordings for the first updated
 launch. Future choices persist automatically. No recording/preview is started by
 preferences. 54 Python tests pass; native dialog acceptance remains pending until
 the user manually closes the currently running old viewer for a reload.
+
+## Personal-test installer prepared (2026-11-10)
+
+User confirmed the last-folder/timestamp defaults in the actual dialog and then
+explicitly requested installer preparation. Autonomous x64 portable/Setup artifacts
+are built and hardware-free self-tested, including actual isolated installation,
+same-version reinstall and uninstall. 56 Python tests pass; driver registry values,
+preferences and retained media hash were unchanged. The active viewer was preserved.
+See [WINDOWS_PACKAGING.md](WINDOWS_PACKAGING.md) for artifacts, exact evidence,
+rebuild procedure and remaining gates. This is an unsigned local test installer for
+an already configured WinUSB MI_01. Fresh-machine universal driver provisioning,
+full original-driver recovery integration, installed-EXE hardware capture, clean
+Windows 10/second-PC, multi-hour/NTSC and public source/signing readiness remain open.
+This user-approved test-installer stage supersedes the earlier blanket Setup gate
+only within this documented scope; it does not certify a final universal release.

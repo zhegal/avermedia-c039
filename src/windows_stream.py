@@ -14,11 +14,11 @@ from capture_stream import PacketWindow, StreamError, VideoCadence, ROOT
 from windows_native import NativeSession
 from windows_pipe import PipeWriter
 from preview_decoder import PreviewDecoder
+from runtime_paths import ffmpeg_path
 
 
 def run_windows(engine, output, log_path, *, allow_disconnect=False, native_factory=NativeSession):
-    ffmpeg = ROOT / 'build/ffmpeg/ffmpeg.exe'
-    ffmpeg = str(ffmpeg) if ffmpeg.is_file() else shutil.which('ffmpeg')
+    ffmpeg = ffmpeg_path()
     if not ffmpeg:
         raise StreamError('FFmpeg is required for Windows streaming')
     log_path = Path(log_path); log_path.parent.mkdir(parents=True, exist_ok=True)

@@ -29,3 +29,4 @@
 !/tests/*.py
 !/tools/
 !/tools/*.py
+!/tools/*.iss
