@@ -113,3 +113,9 @@ Build references: [PyInstaller runtime paths](https://pyinstaller.org/en/stable/
 [Inno application closure](https://jrsoftware.org/ishelp/topic_setup_closeapplications.htm),
 [official Inno downloads](https://jrsoftware.org/isdl.php),
 [FFmpeg licensing/source checklist](https://ffmpeg.org/legal.html).
+
+## 0.1.1 update (2026-11-10)
+Buffered retry recovery and updated artifacts: [WINDOWS_RETRY_STABILITY.md](WINDOWS_RETRY_STABILITY.md).
+Actual isolated 0.1.0-to-0.1.1 upgrade/self-test/reinstall/uninstall passed; 60
+software tests pass. Live capture/recovery on the reported tape remains pending.
+The latest preferred package is 0.1.1; prior artifact hashes retain historical scope.

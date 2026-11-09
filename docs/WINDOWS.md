@@ -479,3 +479,15 @@ full original-driver recovery integration, installed-EXE hardware capture, clean
 Windows 10/second-PC, multi-hour/NTSC and public source/signing readiness remain open.
 This user-approved test-installer stage supersedes the earlier blanket Setup gate
 only within this documented scope; it does not certify a final universal release.
+
+## Buffered retry stability (2026-11-10, 0.1.1)
+
+User's tape-change report is confirmed by a seven-frame failed continuation part.
+Auto-continuation now waits for two seconds of stable source/complete frames while
+buffering original video/PCM, then replays that prefix into strict capture. Short
+failed candidates create no media; their byte/time/rejection metadata remains
+explicit. First manual Record, source ownership and existing recordings are
+unchanged. 60 tests pass, including a fully decoded 50-picture/96,000-sample
+pre-roll. Physical regression remains pending. See
+[WINDOWS_RETRY_STABILITY.md](WINDOWS_RETRY_STABILITY.md). A later genuine break
+still ends a part; the change never hides an admitted archival gap.

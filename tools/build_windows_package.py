@@ -5,6 +5,7 @@ import hashlib
 import importlib.metadata
 import json
 import os
+import re
 from pathlib import Path
 import shutil
 import subprocess
@@ -19,9 +20,12 @@ def main():
     parser.add_argument('--ffmpeg-dir', type=Path, required=True, help='qualified FFmpeg root with bin and LICENSE')
     parser.add_argument('--output', type=Path, required=True, help='new, nonexistent output directory')
     parser.add_argument('--iscc', type=Path)
+    parser.add_argument('--version', default='0.1.0')
     parser.add_argument('--libusb-source', type=Path, required=True, help='official libusb v1.0.30 source archive')
     parser.add_argument('--libusb-license', type=Path, required=True)
     args = parser.parse_args()
+    if not re.fullmatch(r'\d+\.\d+\.\d+',args.version):
+        parser.error('version must be MAJOR.MINOR.PATCH')
     output = args.output.resolve()
     if output.exists():
         parser.error('output already exists; use a new path (build never deletes existing output)')
@@ -58,7 +62,7 @@ def main():
             if source.is_file() and (source.suffix in ('.py','.c','.h','.m','.md','.json','.iss','.txt') or source.name in ('LICENSE','NOTICE','Makefile')):
                 archive.write(source,str(source.relative_to(ROOT)))
     readme = output/'TEST-BUILD.txt'
-    readme.write_text('C039 Recorder 0.1.0 test build, Windows x64.\n'
+    readme.write_text(f'C039 Recorder {args.version} test build, Windows x64.\n'
         'Personal local evaluation; not a public release. Windows 10 and physical NTSC remain unqualified.\n'
         'No drivers/security settings are installed or changed. MI_01 must already use WinUSB\n'
         'with the application discovery GUID. Composite parent and MI_00 stay unchanged.\n'
@@ -78,8 +82,10 @@ def main():
     with (output/'pyinstaller.log').open('w',encoding='utf8') as log:
         subprocess.run(command,cwd=ROOT,stdout=log,stderr=subprocess.STDOUT,check=True)
     app = output/'portable/C039Recorder'
-    manifest = dict(version='0.1.0',qualification='personal-test',
+    manifest = dict(version=args.version,qualification='personal-test',
         source_revision=subprocess.check_output(['git','rev-parse','HEAD'],cwd=ROOT,text=True).strip(),
+        source_worktree_dirty=bool(subprocess.check_output(['git','status','--porcelain'],cwd=ROOT)),
+        source_archive_sha256=hashlib.sha256((licenses/'C039-source.zip').read_bytes()).hexdigest(),
         python=sys.version, pyinstaller=importlib.metadata.version('PyInstaller'),
         pillow=importlib.metadata.version('Pillow'),driver_mutation=False,
         components=[dict(name=p.name,sha256=hashlib.sha256(p.read_bytes()).hexdigest()) for p in binaries],
@@ -90,6 +96,7 @@ def main():
             if file.is_file(): archive.write(file,str(file.relative_to(app.parent)))
     if args.iscc:
         subprocess.run([str(args.iscc.resolve()),'/DAppSource='+str(app),'/DPackageOutput='+str(output),
+                        '/DPackageVersion='+args.version,
                         str(ROOT/'tools/windows_setup.iss')],check=True)
     print(str(output))
 

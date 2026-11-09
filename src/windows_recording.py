@@ -16,8 +16,9 @@ from runtime_paths import diagnostics_root
 
 
 class StrictRecording:
-    def __init__(self, source, path, *, field_order, video_bitrate=12, seconds=0, diagnostics_dir=None):
+    def __init__(self, source, path, *, field_order, video_bitrate=12, seconds=0, diagnostics_dir=None, native_factory=None):
         self.source = source; self.path = Path(path).resolve()
+        self.native_factory = native_factory or source.session_factory
         if self.path.exists():
             raise FileExistsError('Recording already exists; choose a new filename')
         self.diagnostics = Path(diagnostics_dir or diagnostics_root()/'Recordings') / uuid.uuid4().hex
@@ -71,7 +72,7 @@ class StrictRecording:
         try:
             try:
                 code = run_windows(self.engine, self.output, self.log_path,
-                                   native_factory=self.source.session_factory)
+                                   native_factory=self.native_factory)
             finally:
                 self.output.close()
             if not self.engine.stats.video_frames or not self.engine.stats.audio_bytes:

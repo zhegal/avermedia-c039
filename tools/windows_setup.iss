@@ -1,8 +1,11 @@
 ; Local test installer. No driver writes, downloads or capture startup.
+#ifndef PackageVersion
+  #define PackageVersion "0.1.0"
+#endif
 [Setup]
 AppId={{D60511A5-FEF2-4EF0-9B98-B563DB8FBBF4}
 AppName=C039 Recorder
-AppVersion=0.1.0
+AppVersion={#PackageVersion}
 AppPublisher=C039 Recorder project
 DefaultDirName={localappdata}\Programs\C039 Recorder
 DefaultGroupName=C039 Recorder
@@ -11,7 +14,7 @@ ArchitecturesAllowed=x64compatible
 ArchitecturesInstallIn64BitMode=x64compatible
 MinVersion=10.0
 OutputDir={#PackageOutput}
-OutputBaseFilename=C039Recorder-0.1.0-win-x64-Setup
+OutputBaseFilename=C039Recorder-{#PackageVersion}-win-x64-Setup
 Compression=lzma2
 SolidCompression=yes
 AppMutex=Local\C039Recorder.App

@@ -59,3 +59,8 @@ for already provisioned WinUSB is allowed; universal driver provisioning and
 public/signing/source readiness remain pending. Never start installed capture
 alongside the active development viewer. Frozen component paths must fail closed;
 uninstall preserves recordings/preferences and never changes drivers.
+
+0.1.1 retry admission: docs/WINDOWS_RETRY_STABILITY.md. Preserve the bounded
+original-video/PCM pre-roll and the same subscription at admission. No hidden
+trimming, frame repair or discarded stable validation interval in strict output.
+Seven-frame tape-change recovery is software-tested; physical regression pending.

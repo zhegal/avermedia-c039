@@ -28,9 +28,11 @@ class RecordingSession:
         self.current = None; self.lock = threading.Lock()
         self.wait_baseline = source.state.get('complete_frames',0)
         self.stable_since = None; self.stable_profile = None
+        self.retry = None; self.retry_token = None
         self.state = dict(phase='waiting', armed=True, auto_restart=self.auto_restart,
             requested_path=str(self.path), started_utc=datetime.now(timezone.utc).isoformat(),
-            parts=[], breaks=0, errors=[], diagnostics=str(self.diagnostics))
+            parts=[], breaks=0, errors=[], diagnostics=str(self.diagnostics),
+            retry_stability_seconds=2.0, retry_candidates=0, retry_rejections=0, retry_events=[])
         self.thread = threading.Thread(target=self._run,daemon=True)
         self._save()
 
@@ -45,7 +47,7 @@ class RecordingSession:
             json.dump(self.state,target,indent=2); target.flush(); os.fsync(target.fileno())
         os.replace(temporary,self.manifest)
 
-    def _ready(self):
+    def _signal_ready(self):
         if self.ready_override:
             return self.ready_override()
         profile, signal = self.source.current_profile, self.source.signal
@@ -60,6 +62,43 @@ class RecordingSession:
         if self.stable_profile!=profile or self.stable_since is None:
             self.stable_profile=profile; self.stable_since=time.monotonic()
         return time.monotonic()-self.stable_since>=.6
+
+    def _discard_retry(self, reason):
+        if self.retry is None:
+            return
+        self.state['retry_rejections'] += 1
+        self.state['retry_events'].append(dict(reason=reason, bytes=self.retry.buffer_bytes,
+            first_usb_us=self.retry.start_us, last_usb_us=self.retry.last_buffered_us))
+        del self.state['retry_events'][:-32]
+        self.retry.close(); self.retry = None; self.retry_token = None
+
+    def _ready(self):
+        healthy = self._signal_ready()
+        if not self.state['parts'] or self.ready_override:
+            return healthy
+        if not healthy:
+            self._discard_retry('signal/complete-frame stability lost')
+            return False
+        state = self.source.state
+        token = (self.source.current_profile, getattr(self.source,'generation',0),
+                 state.get('complete_frames',0)-state.get('full_streak',0))
+        if self.retry is not None and (token!=self.retry_token or self.retry.failure):
+            self._discard_retry(str(self.retry.failure or 'complete-frame sequence changed'))
+        if self.retry is None:
+            from windows_shared import SharedSession
+            self.retry = SharedSession(self.source, queue_capacity=768)
+            self.retry.prime(); self.retry_token = token
+            self.retry_started = time.monotonic()
+            self.retry_baseline = state.get('complete_frames',0)
+            self.state['retry_candidates'] += 1
+        elapsed = time.monotonic()-self.retry_started
+        self.state['retry_stable_seconds'] = min(elapsed,2.0)
+        # Require both elapsed time and actual complete frames. Raw packets from
+        # this entire interval are replayed to the strict parser after admission.
+        _, _, num, den = self.source.current_profile
+        enough_frames = (not getattr(self.source,'enable_preview',False) or
+                         state.get('complete_frames',0)-self.retry_baseline >= (2*num+den-1)//den)
+        return elapsed>=2.0 and enough_frames and self.retry.admit()
 
     @staticmethod
     def _source_break(errors):
@@ -87,14 +126,15 @@ class RecordingSession:
                 path=self._part_path(number)
                 part=self.part_factory(self.source,path,field_order=self.field_order,
                     video_bitrate=self.video_bitrate,seconds=self.seconds,
-                    diagnostics_dir=self.diagnostics/'Parts')
+                    diagnostics_dir=self.diagnostics/'Parts',
+                    **({'native_factory':self.retry.factory} if self.retry else {}))
                 with self.lock:
                     self.current=part
                     if self.stopping.is_set():
                         part.stop()
                     self.state['phase']='recording'
                     self.state['parts'].append(dict(file=str(path), manifest=str(part.manifest), state='recording'))
-                    self._save(); part.start()
+                    self._save(); part.start(); self.retry = None; self.retry_token = None
                 while not part.done.wait(.05):
                     if self.stopping.is_set():
                         part.stop()
@@ -124,6 +164,7 @@ class RecordingSession:
         except Exception as error:
             self.state.update(phase='failed',errors=[str(error)])
         finally:
+            self._discard_retry('recording disarmed before buffer admission')
             self.state['armed']=False
             self.state['ended_utc']=datetime.now(timezone.utc).isoformat()
             try:
