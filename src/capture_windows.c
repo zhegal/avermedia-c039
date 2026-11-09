@@ -14,6 +14,13 @@
 #include "capture_windows.h"
 #include "av_init.h"
 
+int c039_windows_set_log_path(const wchar_t *path) {
+    if(!path || !*path) return 1;
+    if(!_wfreopen(path,L"a",stderr)) return 1;
+    fputs("native_log_redirected=yes\n",stderr); fflush(stderr);
+    return 0;
+}
+
 enum { SLOTS=32, PACKETS=64, TRANSFER_MS=8 };
 static const GUID application_guid={0xdc5d64d5,0x1ddb,0x4b6f,{0x80,0xcb,0x34,0x72,0x92,0x79,0x54,0xae}};
 typedef struct {

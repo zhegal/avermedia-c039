@@ -64,20 +64,31 @@ def self_test(folder):
         creationflags=subprocess.CREATE_NO_WINDOW)
     streams = json.loads(result)['streams']
     video, audio = streams
+    native_log = 'native_log_redirected=yes' in (folder/'application.log').read_text(encoding='utf-8',errors='replace')
+    if not native_log:
+        raise RuntimeError('Native C diagnostics are missing from application log')
     if (video['codec_name'],video['width'],video['height'],video['display_aspect_ratio']) != ('mpeg2video',720,576,'4:3'):
         raise RuntimeError('Bundled video profile self-test failed')
     if (audio['codec_name'],audio['sample_rate'],audio['channels']) != ('mp2','48000',2):
         raise RuntimeError('Bundled audio profile self-test failed')
     return dict(passed=True, usb_opened=False, audio_device_opened=False,
-                tk_pillow=True, native_dll=True, standards=list(NAMES),
+                tk_pillow=True, native_dll=True, native_c_log=True, standards=list(NAMES),
                 bundled_encode_decode=True, bwdif=True, device=device_status())
 
 
 def main():
     folder = diagnostics_root()/'Application'/str(time.time_ns())
     folder.mkdir(parents=True)
-    log = (folder/'application.log').open('w', encoding='utf-8', buffering=1)
+    log_path = folder/'application.log'
+    log = log_path.open('a', encoding='utf-8', buffering=1)
     sys.stdout = sys.stderr = log
+    # Python redirection alone misses fprintf(stderr) from a windowed C DLL.
+    # Keep both handles append-only so neither overwrites the other's diagnostics.
+    native = ctypes.CDLL(str(binary_path('c039-capture.dll')))
+    native.c039_windows_set_log_path.argtypes = [ctypes.c_wchar_p]
+    native.c039_windows_set_log_path.restype = ctypes.c_int
+    if native.c039_windows_set_log_path(str(log_path)):
+        print('Native diagnostic redirection failed',file=log,flush=True)
     if '--self-test' in sys.argv or '--device-status' in sys.argv:
         parser = argparse.ArgumentParser()
         parser.add_argument('--self-test', action='store_true')

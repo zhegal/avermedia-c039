@@ -9,11 +9,9 @@ from capture_stream import StreamError
 
 class SharedSession:
     """NativeSession-shaped consumer. stop()/close() never stop the USB owner."""
-    def __init__(self, source, *, queue_capacity=128, **options):
+    def __init__(self, source, **options):
         self.source = source; self.options = options
-        self.queue = queue.Queue(queue_capacity)
-        self.primed = None; self.buffering = False; self.buffer_bytes = 0
-        self.last_buffered_us = None
+        self.queue = queue.Queue(128)
         self.stopped = threading.Event()
         self.failure = None; self.last_result = None
         self.start_us = None
@@ -24,40 +22,13 @@ class SharedSession:
     def offer(self, item):
         if self.stopped.is_set() or self.failure:
             return
-        if self.buffering:
-            if item[0] in ('epoch', 'end') or (item[0]=='signal' and
-                    not all(item[1].get(key) for key in ('present','hlock','vlock'))):
-                self.failure = StreamError('source became unstable during retry buffering'); return
-            if item[0]=='batch':
-                self.buffer_bytes += len(item[2]); self.last_buffered_us = item[4]+8000
-                if self.buffer_bytes > 96*1024*1024:
-                    self.failure = StreamError('retry buffer byte budget exhausted'); return
         try:
             self.queue.put_nowait(item)
         except queue.Full:
             self.failure = StreamError('shared-source consumer queue exhausted; USB owner continues')
 
-    def prime(self):
-        self.buffering = True
-        self.primed = self.source.subscribe(self)
-        self.start_us = self.primed[2]
-
-    def factory(self, **options):
-        self.options = options
-        return self
-
-    def admit(self):
-        # Commit the buffered prefix before creating a media file. A loss after
-        # this boundary belongs to normal strict capture, not a failed candidate.
-        with self.source.subscriber_lock:
-            if self.failure:
-                return False
-            self.buffering = False
-            return True
-
     def run(self):
-        profile, signal, self.start_us = self.primed if self.primed is not None else self.source.subscribe(self)
-        self.buffering = False
+        profile, signal, self.start_us = self.source.subscribe(self)
         try:
             if profile:
                 self.options['on_standard'](*profile)

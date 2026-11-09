@@ -1,5 +1,11 @@
 # Buffered recovery admission (0.1.1)
 
+**Withdrawn after failed physical regression (2026-11-10).** The user reported
+a larger interruption and missing useful beginning; a native USB error/recovery
+occurred in the real transition test. 0.1.2 removes this buffered admission path.
+The rest of this document records the superseded experiment, not current accepted
+behavior. See [failure evidence](WINDOWS_RECOVERY_REGRESSION.md).
+
 2026-11-10. User reported two closely spaced breaks during a tape-content change,
 producing an unwanted sub-second continuation part. The private session
 `9e419b1cb8ff4db5a211d4856a0ca6c8` confirms part 3 contained seven pictures

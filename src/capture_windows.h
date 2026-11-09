@@ -10,4 +10,7 @@
 typedef int (*c039_windows_batch_callback)(void *,int,const uint8_t *,size_t,
     const USBD_ISO_PACKET_DESCRIPTOR *,unsigned,uint64_t);
 void c039_windows_session_set_batch_callback(c039_session *,c039_windows_batch_callback);
+/* Configure the DLL's own C stderr before capture, including windowed bundles.
+ * Does not enumerate/open USB or alter driver/device state. */
+int c039_windows_set_log_path(const wchar_t *);
 #endif

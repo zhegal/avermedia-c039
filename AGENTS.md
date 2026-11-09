@@ -64,3 +64,14 @@ uninstall preserves recordings/preferences and never changes drivers.
 original-video/PCM pre-roll and the same subscription at admission. No hidden
 trimming, frame repair or discarded stable validation interval in strict output.
 Seven-frame tape-change recovery is software-tested; physical regression pending.
+
+0.1.1 buffered recovery FAILED physical regression: docs/WINDOWS_RECOVERY_REGRESSION.md.
+0.1.2 rolls back the 2-second gate/raw replay; this supersedes the preceding
+pre-roll preservation instruction. Short fragments remain unresolved. Preserve
+useful content and all failure evidence; do not call retained-media decode a
+successful transition. Native C diagnostics must reach the windowed app log.
+
+User clarified continuous same-family recordings from legacy scripts/WPF are
+the target: docs/LEGACY_CAPTURE_COMPARISON.md. Retry delay is not the solution.
+A future timestamp-aware path must preserve positive A/V gaps without concealment;
+0.1.2 is only rollback/diagnostics, not that implementation.

@@ -133,3 +133,30 @@ unchanged. 60 tests pass, including a fully decoded 50-picture/96,000-sample
 pre-roll. Physical regression remains pending. See
 [WINDOWS_RETRY_STABILITY.md](WINDOWS_RETRY_STABILITY.md). A later genuine break
 still ends a part; the change never hides an admitted archival gap.
+
+## 0.1.1 physical regression FAILED; 0.1.2 mitigation (2026-11-10)
+
+The user reports a longer transition break and missing useful beginning with 0.1.1.
+Logs confirm native result 1/recovery and gaps about 1.24/1.92 s. Retained parts
+fully decode; this does not recover missing content or qualify the experiment.
+Withdraw 0.1.1 for archival use. 0.1.2 restores pre-buffer continuation behavior,
+removing the two-second gate/raw replay. Short fragments remain unresolved; prefer
+preserving available material to cosmetic fragment suppression. A Windows-only
+C-stderr logging hook fixes missing native diagnostics in frozen apps, without
+opening USB or changing capture/register logic. 57 tests pass. The exact USB cause
+and 0.1.2 physical regression remain pending; do not blame CPU without evidence.
+See [WINDOWS_RECOVERY_REGRESSION.md](WINDOWS_RECOVERY_REGRESSION.md). No user files
+were deleted/rewritten and no active viewer was terminated by the agent.
+
+## Continuous-file reference clarified (2026-11-10)
+
+User reports the earlier capture/force PAL/SECAM scripts and vhs-recorder-tool
+kept one file through comparable transitions. Read-only source comparison confirms
+the scripts do not end on timestamp gaps; the WPF path preserves positive source
+PTS gaps through VHST. Our raw-pipe strict-cadence guard deliberately ends a part,
+so fixing retry delay alone cannot meet that workflow. Target compatible 625/50
+transitions with one timestamp-aware encoder/file, explicit gaps and no invented
+pictures. This transport is not implemented yet. Reference constraints and reuse
+limits: [LEGACY_CAPTURE_COMPARISON.md](LEGACY_CAPTURE_COMPARISON.md). Do not execute
+those original-driver control scripts alongside the WinUSB viewer, change drivers,
+or enable preview concealment for archives as a shortcut.
