@@ -25,7 +25,8 @@ def verify(manifest):
     video = next(stream for stream in report['streams'] if stream['codec_name'] == 'mpeg2video')
     audio = next(stream for stream in report['streams'] if stream['codec_name'] == 'mp2')
     frames = [frame for frame in report['frames'] if frame['media_type'] == 'video']
-    samples = sum(frame['nb_samples'] for frame in report['frames'] if frame['media_type'] == 'audio')
+    audio_frames = [frame for frame in report['frames'] if frame['media_type'] == 'audio']
+    samples = sum(frame['nb_samples'] for frame in audio_frames)
     counters = state['windows']
     expected_frames = counters['written_video_frames']
     expected_samples = counters['written_audio_samples']
@@ -52,12 +53,32 @@ def verify(manifest):
     period = denominator / numerator
     if any(abs(b-a-period) > 1/90000 + 1e-6 for a,b in zip(stamps, stamps[1:])):
         raise ValueError('decoded video timestamps are not one uninterrupted native cadence')
+    audio_stamps = [float(frame['best_effort_timestamp_time']) for frame in audio_frames]
+    if not stamps or not audio_stamps:
+        raise ValueError('missing decoded audio/video timestamps')
+    audio_elapsed = 0
+    max_audio_pts_error = 0
+    for frame, stamp in zip(audio_frames, audio_stamps):
+        error = abs(stamp - audio_stamps[0] - audio_elapsed / 48000)
+        max_audio_pts_error = max(max_audio_pts_error, error)
+        if error > 1/90000 + 1e-6:
+            raise ValueError('decoded audio timestamps do not preserve sample cadence')
+        audio_elapsed += frame['nb_samples']
+    # The qualified command/FFmpeg build produces 481 samples of MP2 delay.
+    # The muxer translates both streams together; check that measured origin.
+    priming_samples = (stamps[0] - audio_stamps[0]) * 48000
+    if abs(priming_samples - 481) > 48000/90000 + .05:
+        raise ValueError('encoded A/V origin differs from expected MP2 priming')
     return dict(verified=True, file=state['file'], full_decode=True, video_frames=len(frames),
         source_pcm_samples=expected_samples, decoded_audio_samples=samples, mp2_padding_samples=samples-expected_samples,
         native_geometry=f"720x{state['height']}", rate=state['rate'], field_order=state['field_order'],
         analog_lip_sync_calibrated=False, physical_field_dominance_calibrated=False,
         source_audio_samples=counters['source_audio_bytes']//4,
-        video_clock_drift_us=counters['video_clock_drift_us'], audio_clock_drift_samples=counters['audio_clock_drift_samples'])
+        video_clock_drift_us=counters['video_clock_drift_us'], audio_clock_drift_samples=counters['audio_clock_drift_samples'],
+        video_duration_seconds=len(frames)*period, audio_pts_max_error_seconds=max_audio_pts_error,
+        mp2_priming_samples=priming_samples, audio_pts_checked=True,
+        video_pts_start=stamps[0], video_pts_last=stamps[-1],
+        audio_pts_start=audio_stamps[0], audio_pts_last=audio_stamps[-1])
 
 
 def main():

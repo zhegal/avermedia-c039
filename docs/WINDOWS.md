@@ -420,3 +420,15 @@ physical multi-client/NTSC, long strict recording and Windows 10 remain pending.
 No installer, driver/security change, second USB owner or desktop automation.
 This section supersedes earlier statements that shared HTTP/recording were pending
 implementation; earlier evidence retains its original limited scope.
+
+## Thirty-minute hardware recording checked (2026-11-09)
+
+One strict shared-source C039 VHS recording lasted 30m20s without closing preview,
+source recovery or file rollover. Full decode retained 45,500/45,500 pictures;
+87,360,000 admitted PCM samples plus 768 MP2 padding samples decoded. Video/audio
+PTS, 4:3/interlace flags and independent FFmpeg error-stop decode passed. All
+51 Python tests pass. Audio PTS/MP2-origin checks were added to the offline verifier.
+User reported no noticeable preview A/V offset near the start and end. Source
+clock drift is explicitly retained, not called perfect synchronization. See
+[scope and evidence](WINDOWS_LONG_CAPTURE.md). Multi-hour, physical NTSC, controlled
+disturbances, Windows 10, macOS regression and portable/installer work remain open.

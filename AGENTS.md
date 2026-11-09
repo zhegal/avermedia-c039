@@ -39,3 +39,7 @@ Windows shared HTTP/strict recording now subscribe to the persistent native owne
 Keep diagnostics private (LOCALAPPDATA/C039Recorder/Diagnostics), media folders clean,
 and numbered retries explicit; manual recording Stop disarms retry. Preview-only
 BWDIF/scaling must never enter archive/HTTP encoding. See dated stage notes.
+
+Thirty-minute physical recording evidence: docs/WINDOWS_LONG_CAPTURE.md.
+Retain the user file and private evidence. Do not generalize this single 625/50
+run to multi-hour/NTSC/recovery/Windows 10 acceptance or calibrated analog sync.

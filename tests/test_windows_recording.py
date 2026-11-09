@@ -6,6 +6,7 @@ import shutil
 import sys
 import unittest
 import uuid
+from unittest.mock import patch
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0,str(ROOT/'src')); sys.path.insert(0,str(ROOT/'tools'))
@@ -40,6 +41,21 @@ class RecordingLifecycle(unittest.TestCase):
         self.assertTrue(result['verified']); self.assertEqual(result['video_frames'],5)
         self.assertEqual(result['source_pcm_samples'],9600)
         self.assertLess(result['mp2_padding_samples'],1152)
+        self.assertTrue(result['audio_pts_checked'])
+        # Corrupt one decoded audio timestamp while retaining all media counts.
+        # Qualification must detect timing damage even when lengths still match.
+        import verify_windows_recording as checker
+        actual_run = checker.subprocess.run
+        def corrupt_audio_timestamp(*args, **kwargs):
+            response = actual_run(*args, **kwargs)
+            decoded = json.loads(response.stdout)
+            audio = [f for f in decoded['frames'] if f['media_type']=='audio']
+            audio[2]['best_effort_timestamp_time'] = str(float(audio[2]['best_effort_timestamp_time'])+.05)
+            response.stdout = json.dumps(decoded)
+            return response
+        with patch.object(checker.subprocess, 'run', side_effect=corrupt_audio_timestamp):
+            with self.assertRaisesRegex(ValueError, 'audio timestamps'):
+                checker.verify(recording.manifest)
         with self.assertRaises(FileExistsError):
             StrictRecording(source,target,field_order='tff',seconds=1)
 
