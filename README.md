@@ -1,12 +1,25 @@
-# AVerMedia C039 capture for macOS
+# AVerMedia C039 capture for macOS and Windows
 
-Windows 10/11 x64 support is in progress on `feature/windows-support`.
-The experimental Windows build now provides native WinUSB raw video/PCM capture,
-hardware Auto, USB descriptor/access diagnostics and a live diagnostic viewer.
-Windows HTTP/encoding integration and long-run qualification are still pending.
-The existing macOS implementation is preserved.
-See [Windows development and limits](docs/WINDOWS.md),
-[architecture/context](docs/PROJECT_CONTEXT.md) and [roadmap](docs/ROADMAP.md).
+Windows x64 support is available on `feature/windows-support`; the existing macOS
+implementation is preserved. Current Windows snapshot: **0.2.0**, standalone
+preview with sound, original interlacing in archives, hardware Auto, continuous
+source-timestamp MPEG-2/MP2 TS/MPG recording and shared local HTTP MPEG-TS.
+Recording remembers its folder and suggests a date/time filename.
+
+Windows Setup/portable builds include their Python and FFmpeg components; no
+system FFmpeg/runtime installation is required. Device MI_01 must already be
+provisioned for signed WinUSB with the application discovery GUID. Setup does
+not bind drivers or change Windows security settings. Current artifacts are
+unsigned local evaluation builds, not a universally qualified public release.
+
+Evidence: [Windows implementation](docs/WINDOWS.md),
+[continuous recording](docs/WINDOWS_CONTINUOUS_RECORDING.md),
+[physical PAL-60 check](docs/WINDOWS_PAL60_QUALIFICATION.md),
+[packaging](docs/WINDOWS_PACKAGING.md), [current snapshot](docs/WINDOWS_SNAPSHOT_020.md)
+and [remaining qualification](docs/ROADMAP.md). Windows 10/second-PC, genuine
+NTSC3.58, new-path PAL/SECAM transitions and multi-hour qualification remain pending.
+
+## Existing macOS application
 
 Experimental userspace capture for AVerMedia USB Polaris C039 on Apple Silicon.
 USB ID: `07ca:c039`. Hardware decoder ID: `0x5a3e` (Conexant CX23102).

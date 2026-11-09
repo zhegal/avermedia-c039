@@ -87,3 +87,7 @@ checks are pending a manual handoff, not lack of tape. Do not close the viewer.
 Full media/source-PTS reconciliation passed; one unlocated incomplete source pair
 prevents unconditional continuity qualification. Analog lip sync/field dominance
 remain uncalibrated. User stopped recording and closed preview manually.
+
+2026-11-10 user authorized publishing feature/windows-support and a working
+local 0.2.0 snapshot: docs/WINDOWS_SNAPSHOT_020.md. No main merge. Source branch
+publication is separate from public binary distribution readiness.

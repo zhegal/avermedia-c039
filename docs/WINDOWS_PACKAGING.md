@@ -150,3 +150,10 @@ The user has an NTSC cassette and confirms it is playing; the old viewer reports
 stable PAL-60 output with H/V/chroma lock. Do not keep deferring for lack of tape,
 but do not call this genuine NTSC 3.58 or a new recording qualification. The active
 old viewer was left open. Physical regression of 0.2.0 awaits manual user handoff.
+
+
+## Working snapshot publication (2026-11-10)
+
+0.2.0 source and local standalone Setup/portable snapshot: see
+[WINDOWS_SNAPSHOT_020.md](WINDOWS_SNAPSHOT_020.md). User authorized publishing
+feature/windows-support; no main merge and no public binary release.

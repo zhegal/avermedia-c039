@@ -227,3 +227,10 @@ is not an unqualified source-continuity pass or calibrated analog sync/field ord
 No internal video PTS gap/native error; PAL-60 output is not genuine NTSC3.58 proof.
 See [WINDOWS_PAL60_QUALIFICATION.md](WINDOWS_PAL60_QUALIFICATION.md).
 PAL/SECAM transitions and longer physical 0.2.0 checks remain pending.
+
+
+## Working snapshot publication (2026-11-10)
+
+0.2.0 source and local standalone Setup/portable snapshot: see
+[WINDOWS_SNAPSHOT_020.md](WINDOWS_SNAPSHOT_020.md). User authorized publishing
+feature/windows-support; no main merge and no public binary release.
