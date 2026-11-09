@@ -4,6 +4,8 @@
 !/.gitignore
 !/README.md
 !/Makefile
+!/docs/
+!/docs/*.md
 !/LICENSE
 !/NOTICE
 !/LICENSES/

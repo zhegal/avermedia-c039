@@ -178,6 +178,8 @@ class CaptureStream:
         return cmd + ['-flush_packets', '1', '-f', self.container, 'pipe:1']
 
     def run(self, output, log_path, *, allow_disconnect=False):
+        if os.name == 'nt':
+            raise StreamError('Windows live capture is not implemented yet; build/c039-probe.exe --check only diagnoses USB access')
         if not shutil.which('ffmpeg') or not (ROOT / 'build/c039-probe').is_file():
             raise StreamError('build/c039-probe and ffmpeg are required; run make first')
         log_path = Path(log_path)

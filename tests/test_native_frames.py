@@ -1,5 +1,6 @@
 """The native camera parser must match the established Python capture parser."""
 import ctypes as C
+import os
 from pathlib import Path
 import sys
 import unittest
@@ -8,7 +9,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1] / 'src'))
 from bt656 import Decoder
 from test_bt656 import fields, marker
 
-LIB = C.CDLL(str(Path(__file__).resolve().parents[1] / 'build/libc039-frame.dylib'))
+LIB = C.CDLL(str(Path(__file__).resolve().parents[1] / ('build/c039-frame.dll' if os.name == 'nt' else 'build/libc039-frame.dylib')))
 CALLBACK = C.CFUNCTYPE(None, C.c_void_p, C.c_void_p, C.c_size_t, C.c_uint)
 LIB.c039_frame_decoder_create.argtypes = [C.c_uint, CALLBACK, C.c_void_p]
 LIB.c039_frame_decoder_create.restype = C.c_void_p

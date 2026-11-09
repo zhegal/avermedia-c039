@@ -1,5 +1,12 @@
 # AVerMedia C039 capture for macOS
 
+Windows 10/11 x64 support is in progress on `feature/windows-support`.
+The first Windows build provides USB descriptor/access diagnostics and a
+control-transfer adapter for the shared C initialization logic, **not Windows
+capture yet**. Existing macOS capture remains the working implementation.
+See [Windows development and limits](docs/WINDOWS.md),
+[architecture/context](docs/PROJECT_CONTEXT.md) and [roadmap](docs/ROADMAP.md).
+
 Experimental userspace capture for AVerMedia USB Polaris C039 on Apple Silicon.
 USB ID: `07ca:c039`. Hardware decoder ID: `0x5a3e` (Conexant CX23102).
 
