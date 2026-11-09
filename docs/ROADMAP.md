@@ -87,3 +87,22 @@ failed recordings as continuous. All 51 tests pass. Evidence and limits:
 [WINDOWS_DISTURBANCE_CAPTURE.md](WINDOWS_DISTURBANCE_CAPTURE.md). This supersedes
 only the pending status of these two disturbance scenarios, not all error recovery,
 physical NTSC, multi-hour, Windows 10, portable packaging or installer validation.
+
+## Desktop workflow and recording defaults (2026-11-10)
+
+Latest user scope: the existing single-window video/audio/record workflow is the
+accepted direction. A separate OBS/VLC/FFmpeg client-validation stage is removed
+from the plan; existing HTTP code is retained. Physical NTSC is deferred until a
+known tape is available, not silently qualified and not the next user task.
+
+Recording dialog now remembers the last recording folder and TS/MPG format in
+LOCALAPPDATA/C039Recorder/recording-preferences.json, independently of media output.
+Every opening proposes fresh local YYYY-MM-DD_HH-MM-SS.ts or .mpg. Selection is
+saved after recording is armed; cancellation does not save, start recording or
+create media. Existing exclusive-output collision protection remains in force.
+Unavailable saved folders fall back to the existing default without recreating
+the old folder. Settings errors do not stop an already started recording.
+The user's latest private session seeds K:/VHS Recordings for the first updated
+launch. Future choices persist automatically. No recording/preview is started by
+preferences. 54 Python tests pass; native dialog acceptance remains pending until
+the user manually closes the currently running old viewer for a reload.

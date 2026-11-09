@@ -19,6 +19,7 @@ sys.path.insert(0, str(ROOT / 'src'))
 from windows_audio import PcmMonitor
 from windows_preview import PreviewCapture, put_latest
 from preview_display import fit_4x3, rgb_filter
+from recording_preferences import RecordingPreferences
 
 
 def main():
@@ -155,6 +156,10 @@ def main():
     tk.Label(settings, text='Mbit/s', bg='#202020', fg='white').pack(side='left')
     ttk.Combobox(settings, textvariable=bitrate, values=tuple(map(str,range(8,13))), state='readonly', width=3).pack(side='left', padx=4)
     record_status = tk.StringVar(value='Запись выключена')
+    recording_preferences = RecordingPreferences()
+    preference_warning = ['']
+    if recording_preferences.load_error:
+        print('recording preferences: '+recording_preferences.load_error, file=sys.stderr, flush=True)
     record_label = tk.Label(settings, textvariable=record_status, bg='#202020', fg='white', anchor='w')
     record_label.pack(side='left', fill='x', expand=True, padx=5)
     options=tk.Frame(root,bg='#202020'); options.pack(fill='x',padx=7,pady=(0,5)); normal_widgets.append(options)
@@ -191,7 +196,7 @@ def main():
         if path is None:
             folder = ROOT/'build/recordings'; folder.mkdir(exist_ok=True)
             path = filedialog.asksaveasfilename(parent=root, title='Новая строгая запись',
-                initialdir=str(folder), defaultextension='.ts', filetypes=[('MPEG-TS','*.ts'),('MPEG-PS','*.mpg')])
+                **recording_preferences.dialog_options(folder))
             if not path:
                 return
         try:
@@ -199,6 +204,12 @@ def main():
             recording[0] = RecordingSession(source, path, field_order=order.get(), video_bitrate=int(bitrate.get()),
                                             seconds=seconds,auto_restart=auto_restart.get())
             recording[0].start()
+            try:
+                recording_preferences.remember(path)
+                preference_warning[0] = ''
+            except OSError as error:
+                preference_warning[0] = ' · Не удалось сохранить папку записи'
+                print('recording preferences: '+str(error), file=sys.stderr, flush=True)
         except Exception as error:
             record_status.set(str(error)); record_label.configure(fg='#ffaaaa')
 
@@ -307,6 +318,7 @@ def main():
                         count=current.engine.stats.video_frames if current.engine else 0
                         record_status.set(f"Часть {len(current.state['parts'])}: {count} кадров")
                     record_label.configure(fg='white')
+                    record_status.set(record_status.get()+preference_warning[0])
                 elif current.state['phase']=='failed':
                     record_status.set('Запись приостановлена: '+'; '.join(current.state['errors'][-1:]))
                     record_label.configure(fg='#ffaaaa')

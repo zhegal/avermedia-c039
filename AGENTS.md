@@ -47,3 +47,8 @@ run to multi-hour/NTSC/recovery/Windows 10 acceptance or calibrated analog sync.
 Bounded rewind/Composite-loss recovery evidence: docs/WINDOWS_DISTURBANCE_CAPTURE.md.
 Interrupted-part inspection must preserve verified=false and original errors;
 retained media decoding is not uninterrupted archival qualification.
+
+Latest scope (2026-11-10): single-window preview/audio/record is accepted; do not
+reinstate an OBS/VLC/FFmpeg validation stage. Physical NTSC is deferred for lack
+of a known tape. Preserve last-folder/container preferences and fresh local
+YYYY-MM-DD_HH-MM-SS recording defaults; no automatic recording on startup.
