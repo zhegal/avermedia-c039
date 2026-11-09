@@ -15,6 +15,7 @@ import sys
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / 'src'))
 from bt656 import Decoder
+from video_standards import FIXED_NAMES, geometry
 
 
 class PacketIndex:
@@ -71,7 +72,7 @@ def time_for_byte(rows, offsets, offset):
 def main():
     p = argparse.ArgumentParser(description=__doc__)
     p.add_argument('prefix', type=Path, help='prefix supplied to c039-probe --capture')
-    p.add_argument('--standard', choices=['pal', 'secam', 'ntsc'], default='pal')
+    p.add_argument('--standard', choices=FIXED_NAMES, default='pal')
     p.add_argument('--audit-only', action='store_true', help='verify timing without writing duplicate raw media')
     args = p.parse_args()
     prefix = str(args.prefix)
@@ -84,8 +85,9 @@ def main():
         frames.append(dict(index=index, field1_offset=field1, field2_offset=field2,
             usb_time_us=time_for_byte(video_packets, video_offsets, field1)))
 
-    height = 480 if args.standard == 'ntsc' else 576
-    rate = 30000 / 1001 if args.standard == 'ntsc' else 25
+    height, ratio = geometry(args.standard)
+    numerator, denominator = map(int, ratio.split('/'))
+    rate = numerator / denominator
     output_context = nullcontext(None) if args.audit_only else open(prefix + '.uyvy', 'xb')
     with output_context as output, open(prefix + '.video.bin', 'rb') as source:
         decoder = Decoder(720, height, output.write if output else lambda frame: None, event)

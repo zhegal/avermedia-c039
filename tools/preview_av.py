@@ -13,11 +13,13 @@ import time
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / 'src'))
 from capture_stream import CaptureStream
+from video_standards import NAMES
 
 
 def main():
     p = argparse.ArgumentParser(description=__doc__)
-    p.add_argument('--standard', choices=['pal', 'secam', 'ntsc', 'auto'], default='pal')
+    p.add_argument('--standard', choices=NAMES, default='pal')
+    p.add_argument('--auto-geometry', choices=['pal', 'ntsc'], default='pal')
     p.add_argument('--seconds', type=int, default=600, help='0: until interrupted')
     p.add_argument('--audio-attenuation-db', type=int, default=6)
     p.add_argument('--strict', action='store_true', help='stop at video gaps instead of correcting viewing cadence')
@@ -25,7 +27,8 @@ def main():
     args = p.parse_args()
     try:
         engine = CaptureStream(standard=args.standard, seconds=args.seconds,
-                               attenuation=args.audio_attenuation_db, conceal_gaps=not args.strict)
+                               attenuation=args.audio_attenuation_db, conceal_gaps=not args.strict,
+                               auto_geometry=args.auto_geometry)
     except ValueError as error:
         p.error(str(error))
     if not shutil.which('ffplay'):

@@ -121,7 +121,8 @@ static void usage(const char *program) {
         "  --video-probe pal|secam|ntsc|auto FILE  Composite payload\n"
         "  --audio-probe FILE           line PCM, stereo S16_LE 48kHz\n"
         "  --capture pal|secam|ntsc|auto PREFIX   simultaneous video + audio\n"
-        "  auto: continuous PAL/SECAM detection, fixed 720x576/25 geometry\n"
+        "  --list-standards             supported setting names and native geometry (JSON)\n"
+        "  auto: continuous detection of all decoder formats, including 525/60\n"
         "  --calibrate                 AFE calibration (automatic in --capture)\n"
         "  --seconds 0..3600            duration; 0=until signal (default 1 second)\n"
         "  --audio-attenuation-db 0..48 additional PCM attenuation (default 0)\n"
@@ -162,6 +163,16 @@ int main(int argc, char **argv) {
             strcmp(argv[i],"--audio-attenuation-db") && strcmp(argv[i],"--log-fifo-packets") && argv[i][0]=='-';
         if(is_mode) modes++;
         if(!strcmp(argv[i],"--help")) { usage(argv[0]); return 0; }
+        if(!strcmp(argv[i],"--list-standards")) {
+            putchar('[');
+            for(size_t n=0;n<c039_standard_name_count;n++) {
+                const c039_standard_alias *a=&c039_standard_names[n];
+                const c039_video_standard *p=c039_standard(a->id);
+                printf("%s{\"name\":\"%s\",\"id\":%u,\"height\":%u,\"rate_num\":%u,\"rate_den\":%u}",
+                    n?",":"",a->name,a->id,p?p->height:0,p?p->rate_num:0,p?p->rate_den:1);
+            }
+            puts("]"); return 0;
+        }
         if(!strcmp(argv[i],"--registers")) registers=1;
         else if(!strcmp(argv[i],"--wake")) { wake=1; registers=1; }
         else if(!strcmp(argv[i],"--afe")) { afe=1; registers=1; }
@@ -185,14 +196,14 @@ int main(int argc, char **argv) {
         }
         else if(!strcmp(argv[i],"--video-probe") && i+2<argc) {
             const char *standard=argv[++i];
-            video_standard=!strcmp(standard,"pal")?1:!strcmp(standard,"secam")?2:!strcmp(standard,"ntsc")?3:!strcmp(standard,"auto")?4:0;
-            if(!video_standard) { fprintf(stderr,"expected pal, secam, ntsc or auto\n"); return 64; }
+            video_standard=c039_standard_parse(standard);
+            if(!video_standard) { fprintf(stderr,"unknown standard; see --list-standards\n"); return 64; }
             iso_path=argv[++i]; av_init=2;
         }
         else if(!strcmp(argv[i],"--capture") && i+2<argc) {
             const char *standard=argv[++i];
-            video_standard=!strcmp(standard,"pal")?1:!strcmp(standard,"secam")?2:!strcmp(standard,"ntsc")?3:!strcmp(standard,"auto")?4:0;
-            if(!video_standard) { fprintf(stderr,"expected pal, secam, ntsc or auto\n"); return 64; }
+            video_standard=c039_standard_parse(standard);
+            if(!video_standard) { fprintf(stderr,"unknown standard; see --list-standards\n"); return 64; }
             iso_path=argv[++i]; av_init=2; calibrate=1; iso_endpoint=0;
         }
         else if(argv[i][0]=='-') { usage(argv[0]); return 64; }

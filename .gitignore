@@ -15,6 +15,9 @@
 !/src/*.h
 !/src/*.m
 !/src/*.py
+!/camera/
+!/camera/*.swift
+!/camera/*.h
 !/tests/
 !/tests/*.c
 !/tests/*.py

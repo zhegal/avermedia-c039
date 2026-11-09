@@ -2,6 +2,7 @@
 #ifndef C039_AV_INIT_H
 #define C039_AV_INIT_H
 #include <stdint.h>
+#include "video_standard.h"
 
 // Synchronous transfer callback: 0=complete, 1=error, 2=USB transaction error.
 // Only a bridge power transition may reconcile code 2 by exact readback.
@@ -14,7 +15,8 @@ typedef struct {
     void (*sleep_ms)(void *, unsigned);
     int (*cancelled)(void *);
     int (*on_ready)(void *, int (*monitor)(void *), void *monitor_context);
-    unsigned video_standard; // 0=unchanged, 1=PAL, 2=SECAM, 3=NTSC-M, 4=auto PAL/SECAM.
+    unsigned video_standard; // 0=unchanged; C039_AUTO detects all decoder formats.
+    void (*standard_changed)(void *,const c039_video_standard *);
     int line_audio;
     unsigned audio_attenuation_db; // 0..48, PATH1_VOLUME half-dB steps.
 } c039_transport;

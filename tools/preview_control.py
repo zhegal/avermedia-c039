@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # SPDX-License-Identifier: GPL-2.0-or-later
-"""PAL/SECAM preview controls with decoder signal status and safe mode switching."""
+"""Composite standard controls with A/V preview, full Auto and safe restarts."""
 import argparse
 from pathlib import Path
 import signal
@@ -11,6 +11,8 @@ from tkinter import ttk
 import time
 
 ROOT = Path(__file__).resolve().parents[1]
+sys.path.insert(0, str(ROOT / 'src'))
+from video_standards import NAMES, STANDARDS
 
 
 class Controls:
@@ -24,15 +26,19 @@ class Controls:
         self.counter = 0
         self.next_start = 0
         self.mode = tk.StringVar(value=standard)
+        self.selection = tk.StringVar(value=standard.upper())
+        self.auto_geometry = 'pal'
+        self.active_geometry = None
         self.status = tk.StringVar(value='Ожидание изображения…')
-        window.title('AVerMedia C039 — PAL / SECAM')
-        window.geometry('470x210')
+        window.title('AVerMedia C039 — стандарт входа')
+        window.geometry('470x230')
         frame = ttk.Frame(window, padding=16); frame.pack(fill='both', expand=True)
         ttk.Label(frame, text='Вход Composite', font=('', 14, 'bold')).pack(anchor='w')
         choices = ttk.Frame(frame); choices.pack(anchor='w', pady=12)
-        for text, value in [('Auto PAL/SECAM', 'auto'), ('PAL', 'pal'), ('SECAM', 'secam')]:
-            ttk.Radiobutton(choices, text=text, value=value, variable=self.mode,
-                            command=self.change_mode).pack(side='left', padx=(0, 12))
+        ttk.Label(choices, text='Стандарт:').pack(side='left', padx=(0, 12))
+        select = ttk.Combobox(choices, values=[name.upper() for name in NAMES],
+                             textvariable=self.selection, state='readonly', width=28)
+        select.pack(side='left'); select.bind('<<ComboboxSelected>>', lambda *_: self.change_mode())
         ttk.Label(frame, textvariable=self.status, wraplength=430).pack(anchor='w', pady=6)
         buttons = ttk.Frame(frame); buttons.pack(anchor='w', pady=8)
         ttk.Button(buttons, text='Запустить', command=self.start).pack(side='left', padx=(0, 8))
@@ -44,6 +50,7 @@ class Controls:
         window.after(100, self.poll)
 
     def change_mode(self):
+        self.mode.set(self.selection.get().lower())
         self.wanted = True
         self.status.set('Переключение режима…')
         if self.process is not None and self.process.poll() is None:
@@ -75,11 +82,13 @@ class Controls:
         if self.wanted and not alive and time.monotonic() >= self.next_start:
             self.counter += 1
             self.active_mode = self.mode.get()
+            self.active_geometry = self.auto_geometry
             self.log = Path(str(self.prefix) + f'-{self.counter}.log')
             self.log.parent.mkdir(parents=True, exist_ok=True)
             self.player_log = Path(str(self.prefix) + f'-{self.counter}.wrapper.log').open('w')
             self.process = subprocess.Popen([sys.executable, str(ROOT / 'tools/preview_av.py'),
-                '--standard', self.active_mode, '--seconds', '0', '--log', str(self.log)],
+                '--standard', self.active_mode, '--auto-geometry', self.auto_geometry,
+                '--seconds', '0', '--log', str(self.log)],
                 stdout=self.player_log, stderr=self.player_log)
             self.status.set(f'Режим {self.active_mode.upper()}: ожидание сигнала…')
         elif alive:
@@ -95,7 +104,13 @@ class Controls:
                     selected = values['selected'].upper()
                     message = f'Сигнал есть; настройка {selected}' if stable else 'Нет устойчивой синхронизации'
                     if stable and self.active_mode == 'auto' and detected != selected:
-                        message = f'Переход {selected} → {detected}…' if detected in ('PAL', 'SECAM') else 'Auto поддерживает только PAL/SECAM'
+                        message = f'Переход {selected} → {detected}…'
+                    profile = STANDARDS.get(selected.lower())
+                    if stable and self.active_mode == 'auto' and profile and profile['height']:
+                        self.auto_geometry = 'ntsc' if profile['height'] == 480 else 'pal'
+                        if self.auto_geometry != self.active_geometry:
+                            message = 'Изменение размера и частоты: перезапуск окна…'
+                            self.process.terminate()
                     self.status.set(f'Режим: {self.active_mode.upper()}   Декодер: {detected}\n' + message)
             except (OSError, KeyError, ValueError):
                 pass
@@ -106,7 +121,7 @@ class Controls:
 
 def main():
     p = argparse.ArgumentParser(description=__doc__)
-    p.add_argument('--standard', choices=['auto', 'pal', 'secam'], default='auto')
+    p.add_argument('--standard', choices=NAMES, default='auto')
     p.add_argument('--log-prefix', type=Path, default=ROOT / 'build/preview-control')
     args = p.parse_args()
     window = tk.Tk()

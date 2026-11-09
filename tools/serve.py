@@ -14,11 +14,13 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / 'src'))
 from capture_stream import CaptureStream
 from http_stream import TransportBroker, make_server
+from video_standards import NAMES
 
 
 def main():
     p = argparse.ArgumentParser(description=__doc__)
-    p.add_argument('--standard', choices=['pal', 'secam', 'ntsc', 'auto'], default='pal')
+    p.add_argument('--standard', choices=NAMES, default='pal')
+    p.add_argument('--auto-geometry', choices=['pal', 'ntsc'], default='pal')
     p.add_argument('--field-order', choices=['tff', 'bff'])
     p.add_argument('--seconds', type=int, default=0)
     p.add_argument('--audio-attenuation-db', type=int, default=6)
@@ -34,7 +36,7 @@ def main():
     try:
         engine = None if args.replay else CaptureStream(standard=args.standard, seconds=args.seconds,
             attenuation=args.audio_attenuation_db, container='mpegts', field_order=args.field_order,
-            conceal_gaps=not args.strict)
+            conceal_gaps=not args.strict, auto_geometry=args.auto_geometry)
     except ValueError as error:
         p.error(str(error))
     broker = TransportBroker()

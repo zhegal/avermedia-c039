@@ -9,7 +9,7 @@ USB ID: `07ca:c039`. Hardware decoder ID: `0x5a3e` (Conexant CX23102).
 - AV power, AFE calibration, Composite input and line-audio initialization.
 - Asynchronous isochronous video/audio capture on a shared USB bus timeline.
 - PAL/SECAM 720×576 UYVY, 25 frames/s, two fields preserved.
-- Continuous PAL/SECAM auto detection with debounced chroma reconfiguration.
+- Nine decoder format profiles, regional Composite aliases and full AFD Auto.
 - Stereo signed 16-bit little-endian PCM at 48 kHz.
 - Live NUT/MPEG-TS output to stdout or a new file; FFmpeg/ffplay preview.
 - Local HTTP MPEG-TS source with independent, bounded client queues.
@@ -18,7 +18,10 @@ USB ID: `07ca:c039`. Hardware decoder ID: `0x5a3e` (Conexant CX23102).
 - Checked control restoration on normal completion and SIGINT/SIGTERM.
 
 No kernel extension, DriverKit component, firmware upload or EEPROM write.
-The device does not currently appear as a system camera or audio input.
+A native CoreMediaIO Camera Extension prototype is included separately.
+It has not been activated: the current Personal Team cannot provision the
+System Extension capability. C039 is not yet available as a system camera
+or audio input on the test machine.
 
 ## Requirements
 
@@ -104,28 +107,89 @@ or scaling; field dominance and analog lip-sync remain uncalibrated.
 For client testing without USB, use `--replay existing.ts`; it loops a recording
 until interrupted. This mode does not open the capture device.
 
-## VCR preview controls and Auto PAL/SECAM
+## Standards and VCR preview controls
+
+The profile list follows Linux's CX25840 decoder and the standard names found
+in the legacy AVerMedia C039 macOS driver. Regional RF differences do not
+require different Composite/RCA decoder settings.
+
+| Input setting | Native output | Physical validation |
+|---|---|---|
+| PAL-B/D/G/H/I (`pal`) | 720×576, 25 fps | PAL tested |
+| PAL-N, PAL-Nc | 720×576, 25 fps | Pending |
+| SECAM-B/D/G/H/K/K1/L/L1 (`secam`) | 720×576, 25 fps | SECAM tested |
+| NTSC-M, NTSC-J, NTSC-4.43 | 720×480, 30000/1001 fps | Pending |
+| PAL-M, PAL-60 | 720×480, 30000/1001 fps | Pending |
+
+List exact command-line names without opening USB:
+
+```sh
+./build/c039-probe --list-standards
+```
+
+The legacy driver calls NTSC-4.43 `NTSC_433`; `ntsc-433` is an alias for
+`ntsc-443`. Each manual profile is available to the capture and encoding tools.
 
 ```sh
 python3 tools/preview_control.py --standard auto
 ```
 
-The Tkinter panel selects Auto, PAL or SECAM and displays the decoder's detected
+The Tkinter panel selects Auto or any listed standard and displays the decoder's detected
 format and synchronization status. A separate ffplay window shows video and
 plays stereo RCA audio at 48 kHz, with an additional 6 dB attenuation.
 Stop it before using another capture tool.
 
 Auto continuously reads the decoder's AFD status and requires three stable
-observations before changing PAL/SECAM settings. The output remains 720×576/25;
-NTSC is not part of this automatic mode. A real mixed-standard VCR tape was
+observations before updating chroma and native timing. It accepts all nine
+reported decoder formats, including 625/50 ↔ 525/59.94 transitions. The panel
+restarts its player when native height/frame rate changes. A real mixed-standard VCR tape was
 confirmed by the user to display correct color in SECAM and after a running
-SECAM→PAL transition. The reverse physical transition still needs validation.
+SECAM→PAL transition. The reverse physical transition and all 525-line signals
+still need validation.
 The panel requires Tkinter; command-line streaming does not.
 
 The panel's A/V preview corrects short timing disruptions for viewing and safely
 restarts capture after a stream error. Strict live recording still stops on a
 frame timestamp gap instead of hiding loss. `tools/preview_av.py --strict`
 provides the same strict behavior in the standalone A/V preview.
+
+Standalone NUT/MPEG-TS tools use a fixed pipe geometry per invocation. Auto
+starts at 576/25 unless `--auto-geometry ntsc` is selected. These tools stop
+on incompatible geometry; they do not rescale or transparently splice formats.
+Native raw USB capture and the camera backend can change profiles in one run.
+
+## System camera prototype
+
+```sh
+python3 tools/build_camera.py                 # compile only, unsigned
+python3 tools/build_camera.py --team TEAM_ID --provision
+```
+
+The second command requires a suitable Apple Developer team; Xcode's Personal
+Team does not support the System Extension capability. The script generates
+an Xcode project under `build/` and builds `build/camera-products/C039 Camera.app`.
+It does not install anything or change macOS security settings. Certificates,
+team-specific project settings and provisioning profiles are not distributed.
+
+With a valid signed build, install the app in `/Applications`, launch it and
+select Activate Camera. Allow the camera extension in macOS settings when
+prompted. The intended device name in capture lists is **AVerMedia C039**.
+This is the [CoreMediaIO camera-extension mechanism](https://developer.apple.com/documentation/coremediaio/creating-a-camera-extension-with-core-media-i-o).
+
+The extension links the existing C USB/initialization code directly; it does
+not spawn Python, FFmpeg or other processes. USB starts with the first camera
+stream and is restored after the last stream stops. UYVY buffers use IOSurface;
+the native assembler preserves both fields. Auto advertises 576/25 and
+480 at 30000/1001 formats and notifies clients when input geometry changes.
+Client behavior during a live geometry change is not yet validated.
+
+The native backend was tested separately against the physical PAL source:
+149 full frames in 6 seconds, zero packet errors, USB controls restored.
+That verifies the embedded capture path, not installation or application
+compatibility. No end-to-end camera-list test has passed yet. The prototype
+publishes video only; a paired CoreAudio RCA input remains to be implemented.
+Camera output uses host-time cadence and may repeat frames during signal loss;
+use strict raw/stream tools for auditing source continuity.
 
 ## Live preview
 
@@ -201,21 +265,23 @@ Physical Composite PAL tests used a menu and moving video with RCA audio.
 | HTTP clients | Live VLC picture; simultaneous FFmpeg decode, stream inspection and copy recording |
 | Stream shutdown | SIGTERM, early reader exit and a stalled downstream tested; USB restored |
 | Lifecycle | Finite capture, preview SIGTERM, player exit, restart and control restoration tested |
-| Software tests | 23 Python tests; 1,681 injected control-transfer failures; C ASan/UBSan run passed |
+| Software tests | 30 Python tests; native parser tests; 4,139 injected control-transfer failures; C ASan/UBSan passed |
 
 Initial and final incomplete fields are discarded. Packet timestamps align
 USB delivery, not the unmeasured internal analog video/audio latency.
 
 ## Limitations
 
-- NTSC-M settings exist but have no physical signal validation.
+- NTSC variants and PAL-M/N/Nc/60 settings have no physical signal validation.
 - SECAM color and SECAM→PAL auto switching were checked on a VCR; long timed
   packet/audio audits and PAL→SECAM transition validation remain outstanding.
 - S-Video input selection is not implemented.
 - Temporal field dominance and analog lip-sync offset need a controlled test.
 - Long-term clock-drift correction is not implemented.
 - Hot unplug, sleep/wake and disk-full recovery are not validated.
-- System camera/audio-device integration is absent; HTTP clients use an encoded stream.
+- Camera Extension compiles but activation is blocked by Personal Team provisioning;
+  system enumeration, client capture and live geometry-change behavior remain unvalidated.
+- A system RCA audio input is not implemented.
 - OBS Media Source configuration is documented but not physically validated here.
 - SIGKILL, power loss or a process crash may prevent control restoration.
 
@@ -230,6 +296,9 @@ result fields are not treated as immutable state.
 - `src/av_init.c`: bounded AV/AFE/video/audio initialization and rollback.
 - `src/capture_stream.py`: shared bounded streaming engine.
 - `src/http_stream.py`, `tools/serve.py`: local MPEG-TS fanout service.
+- `src/video_standard.c`: decoder profiles and regional Composite aliases.
+- `src/capture_device.c`, `src/frame_decoder.c`: embeddable native camera backend.
+- `camera/`, `tools/build_camera.py`: camera extension and activation app prototype.
 - `src/iso_probe.c`: asynchronous ISO transport and packet timestamps.
 - `src/probe.c`: device access and capture CLI; `--help` lists modes.
 - `src/bt656.py`: SAV-only/SAV-EAV field assembly.

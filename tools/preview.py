@@ -12,11 +12,12 @@ import time
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / 'src'))
 from bt656 import Decoder
+from video_standards import NAMES, geometry
 
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument('--standard', choices=['pal', 'secam', 'ntsc', 'auto'], default='pal')
+    parser.add_argument('--standard', choices=NAMES, default='pal')
     parser.add_argument('--seconds', type=int, default=600)
     parser.add_argument('--log', type=Path, default=ROOT / 'build' / 'preview.log')
     args = parser.parse_args()
@@ -33,8 +34,7 @@ def main():
 
     signal.signal(signal.SIGINT, stop)
     signal.signal(signal.SIGTERM, stop)
-    height = 480 if args.standard == 'ntsc' else 576
-    rate = '30000/1001' if args.standard == 'ntsc' else '25'
+    height, rate = geometry(args.standard)
     with tempfile.TemporaryDirectory(prefix='c039-preview-') as temp, args.log.open('w') as log:
         fifo = Path(temp) / 'video.fifo'
         os.mkfifo(fifo)

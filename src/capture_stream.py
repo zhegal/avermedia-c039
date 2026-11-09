@@ -14,6 +14,7 @@ import threading
 import time
 
 from bt656 import Decoder
+from video_standards import NAMES, geometry
 
 ROOT = Path(__file__).resolve().parents[1]
 
@@ -131,14 +132,15 @@ class StreamStats:
 
 class CaptureStream:
     def __init__(self, *, standard='pal', seconds=0, attenuation=6,
-                 container='nut', field_order=None, conceal_gaps=False):
-        if standard not in ('pal', 'secam', 'ntsc', 'auto') or not 0 <= seconds <= 3600:
+                 container='nut', field_order=None, conceal_gaps=False, auto_geometry='pal'):
+        if standard not in NAMES or not 0 <= seconds <= 3600 or auto_geometry not in ('pal', 'ntsc'):
             raise ValueError('invalid standard or duration')
         if not 0 <= attenuation <= 48 or container not in ('nut', 'mpegts'):
             raise ValueError('invalid attenuation or container')
         if field_order not in (None, 'tff', 'bff') or (container == 'mpegts' and field_order is None):
             raise ValueError('MPEG-TS requires explicit tff/bff field order')
         self.standard, self.seconds, self.attenuation = standard, seconds, attenuation
+        self.height, self.rate = geometry(standard, auto_geometry)
         self.container, self.field_order = container, field_order
         self.conceal_gaps = conceal_gaps
         self.stopping = threading.Event()
@@ -156,7 +158,7 @@ class CaptureStream:
         self.stopping.set()
 
     def mux_command(self, video_fd, audio_fd):
-        height, rate = (480, '30000/1001') if self.standard == 'ntsc' else (576, '25')
+        height, rate = self.height, self.rate
         cmd = ['ffmpeg', '-nostdin', '-hide_banner', '-loglevel', 'warning',
                '-thread_queue_size', '32', '-f', 'rawvideo', '-pixel_format', 'uyvy422',
                '-video_size', f'720x{height}', '-framerate', rate, '-probesize', '32',
@@ -261,7 +263,7 @@ class CaptureStream:
             def video_worker():
                 frames = []
                 last_frame = None
-                period = 1001000 / 30 if self.standard == 'ntsc' else 40000
+                period = 1001000 / 30 if self.height == 480 else 40000
                 cadence = VideoCadence(period, self.conceal_gaps)
 
                 def event(index, field1, field2):
@@ -281,7 +283,7 @@ class CaptureStream:
                     last_frame = frame
                     enqueue(queues[0], last_frame)
 
-                decoder = Decoder(720, 480 if self.standard == 'ntsc' else 576, frames.append, event)
+                decoder = Decoder(720, self.height, frames.append, event)
                 broken = False
                 try:
                     for data in chunks(fds[0]):

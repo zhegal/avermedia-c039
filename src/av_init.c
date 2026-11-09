@@ -166,20 +166,22 @@ static int video_setup(session *s,unsigned standard,int settle) {
        video_mask(s,0x33c,0x80000000,0x80000000) ||
        video_mask(s,0x488,0x18000000,0x18000000) ||
        video_mask(s,0x404,0x83,0x82)) return 1;
-    unsigned ntsc=standard==3,secam=standard==2;
-    unsigned fmt=ntsc?1:secam?12:4;
+    const c039_video_standard *profile=c039_standard(standard);
+    if(!profile) return 1;
+    unsigned lines525=profile->height==480,secam=standard==C039_SECAM;
+    unsigned ntsc=profile->format<=3,fmt=profile->format;
     // PAL comb-filter startup sequence from set_v4lstd.
-    if(!ntsc && !secam && (video_byte_mask(s,0x400,0xf,1) || video_byte_mask(s,0x47b,6,0))) return 1;
+    if(fmt>=4 && fmt<8 && (video_byte_mask(s,0x400,0xf,1) || video_byte_mask(s,0x47b,6,0))) return 1;
     if(video_byte_mask(s,0x400,0x3f,fmt|0x20) ||
-       video_byte_mask(s,0x401,6,0) || video_byte_mask(s,0x403,3,0)) return 1;
+       video_byte_mask(s,0x401,6,0) || video_byte_mask(s,0x403,3,standard==C039_PAL_M)) return 1;
     // Native 720-pixel window, no horizontal or vertical scaling. These use
     // cx25840_std_setup generic timing values, with exact 576/480 active rows.
-    unsigned hb=ntsc?122:132,ha=720,vb=ntsc?20:34,va=ntsc?480:576;
-    unsigned sc=ntsc?556063:secam?0x0a425f:688739;
-    uint8_t timing[]={hb,((hb>>8)&3)|((ha<<4)&0xf0),ha>>4,ntsc?0x5b:93,
-        vb,((vb>>8)&3)|((va<<4)&0xf0),va>>4,ntsc?24:38,
-        0x1f,2,(uint8_t)((ntsc?1:2)<<6 | (secam?0:1)<<4),
-        ntsc?0x66:secam?0:0x20,sc,sc>>8,sc>>16,ntsc?0:1};
+    unsigned hb=lines525?122:132,ha=720,vb=lines525?20:34,va=profile->height;
+    unsigned sc=profile->subcarrier;
+    uint8_t timing[]={hb,((hb>>8)&3)|((ha<<4)&0xf0),ha>>4,profile->burst,
+        vb,((vb>>8)&3)|((va<<4)&0xf0),va>>4,lines525?24:38,
+        0x1f,2,(uint8_t)(profile->luma<<6 | (secam?0:1)<<4),
+        profile->comb,sc,sc>>8,sc>>16,lines525?0:1};
     for(unsigned i=0;i<sizeof(timing);i++) if(video_byte(s,0x470+i,timing[i])) return 1;
     const unsigned scale_regs[]={0x418,0x419,0x41a,0x41c,0x41d,0x41e};
     for(unsigned i=0;i<6;i++) if(video_byte(s,scale_regs[i],i==5?8:0)) return 1;
@@ -190,7 +192,8 @@ static int video_setup(session *s,unsigned standard,int settle) {
     return read_reg(s,4,0x8829,0x40c,status,4);
 }
 static const char *standard_name(unsigned standard) {
-    return standard==1?"pal":standard==2?"secam":standard==3?"ntsc":standard==4?"auto":"unknown";
+    const c039_video_standard *profile=c039_standard(standard);
+    return standard==C039_AUTO?"auto":profile?profile->name:"unknown";
 }
 static int video_monitor(void *context) {
     session *s=context;
@@ -198,17 +201,17 @@ static int video_monitor(void *context) {
     uint8_t b[4];
     if(read_reg(s,4,0x8829,0x40c,b,4)) return 1;
     unsigned fmt=b[1]&15;
-    unsigned detected=fmt==4?1:fmt==12?2:(fmt>=1 && fmt<=3)?3:0;
+    unsigned detected=c039_standard_detect(fmt);
     unsigned present=(b[2]&0x20)!=0,hlock=(b[2]&1)!=0,vlock=(b[2]&4)!=0;
-    if(s->io->video_standard==4 && present && hlock && vlock && (detected==1 || detected==2)) {
+    if(s->io->video_standard==C039_AUTO && present && hlock && vlock && detected) {
         if(s->pending_standard==detected) s->stable_count++;
         else { s->pending_standard=detected; s->stable_count=1; }
         if(s->stable_count>=3 && s->active_standard!=detected) {
             printf("standard_transition from=%s to=%s\n",standard_name(s->active_standard),standard_name(detected));
-            // Both standards use the same native 720x576/25 frame geometry.
             // Keep AFD active while updating standard-specific chroma controls.
             if(video_setup(s,detected,0) || video_byte_mask(s,0x400,0xf,0)) return 1;
             s->active_standard=detected;
+            if(s->io->standard_changed) s->io->standard_changed(s->io->context,c039_standard(detected));
         }
     } else s->stable_count=0;
     printf("signal mode=%s detected=%s fmt=%u present=%u hlock=%u vlock=%u chroma=%u selected=%s\n",
@@ -231,7 +234,8 @@ static int audio_setup(session *s) {
 int c039_av_probe(c039_transport *transport,uint16_t *decoder_id,int calibrate) {
     session s={.io=transport};
     *decoder_id=0;
-    if(transport->audio_attenuation_db>48 || transport->video_standard>4) return 1;
+    if(transport->audio_attenuation_db>48 || (transport->video_standard &&
+        transport->video_standard!=C039_AUTO && !c039_standard(transport->video_standard))) return 1;
     puts("stage=external-av-power");
     int failed=power(&s);
     if(!failed && calibrate) { puts("stage=afe-super-block"); failed=super_block(&s); }
@@ -257,6 +261,7 @@ int c039_av_probe(c039_transport *transport,uint16_t *decoder_id,int calibrate) 
         s.active_standard=transport->video_standard==4?1:transport->video_standard;
         failed=video_setup(&s,s.active_standard,1);
         if(!failed && transport->video_standard==4) failed=video_byte_mask(&s,0x400,0xf,0);
+        if(!failed && transport->standard_changed) transport->standard_changed(transport->context,c039_standard(s.active_standard));
     }
     if(!failed && transport->line_audio) {
         puts("stage=firmware-free-line-audio"); failed=audio_setup(&s);

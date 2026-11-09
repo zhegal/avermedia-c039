@@ -10,11 +10,13 @@ import sys
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / 'src'))
 from capture_stream import CaptureStream, StreamError
+from video_standards import NAMES
 
 
 def main():
     p = argparse.ArgumentParser(description=__doc__)
-    p.add_argument('--standard', choices=['pal', 'secam', 'ntsc', 'auto'], default='pal')
+    p.add_argument('--standard', choices=NAMES, default='pal')
+    p.add_argument('--auto-geometry', choices=['pal', 'ntsc'], default='pal')
     p.add_argument('--seconds', type=int, default=0, help='0: until interrupted')
     p.add_argument('--audio-attenuation-db', type=int, default=6)
     p.add_argument('--format', choices=['nut', 'mpegts'], default='nut')
@@ -24,7 +26,8 @@ def main():
     args = p.parse_args()
     try:
         engine = CaptureStream(standard=args.standard, seconds=args.seconds,
-            attenuation=args.audio_attenuation_db, container=args.format, field_order=args.field_order)
+            attenuation=args.audio_attenuation_db, container=args.format, field_order=args.field_order,
+            auto_geometry=args.auto_geometry)
     except ValueError as error:
         p.error(str(error))
     if args.output == '-' and sys.stdout.isatty():

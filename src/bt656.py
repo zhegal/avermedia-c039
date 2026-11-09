@@ -120,14 +120,15 @@ class Decoder:
 
 
 def main():
+    from video_standards import FIXED_NAMES, geometry
     p = argparse.ArgumentParser(description=__doc__)
     p.add_argument('input', help='raw endpoint 0x84 payload file, or - for stdin')
     p.add_argument('output', help='woven raw frames, or - for stdout')
-    p.add_argument('--standard', choices=['pal', 'secam', 'ntsc'], default='pal')
+    p.add_argument('--standard', choices=FIXED_NAMES, default='pal')
     args = p.parse_args()
     source = sys.stdin.buffer if args.input == '-' else open(args.input, 'rb')
     target = sys.stdout.buffer if args.output == '-' else open(args.output, 'xb')
-    decoder = Decoder(720, 480 if args.standard == 'ntsc' else 576, target.write)
+    decoder = Decoder(720, geometry(args.standard)[0], target.write)
     try:
         while chunk := source.read(65536):
             decoder.feed(chunk)

@@ -8,7 +8,8 @@
 #include <string.h>
 #include <sys/stat.h>
 
-enum { SLOTS=8, PACKETS=64, CAPACITY=2892 };
+// 256ms scheduling headroom, including time spent in userspace consumers.
+enum { SLOTS=32, PACKETS=64, CAPACITY=2892 };
 typedef struct {
     uint8_t data[PACKETS*CAPACITY];
     IOUSBIsocFrame frames[PACKETS];
@@ -80,10 +81,14 @@ typedef struct {
     size_t bytes;
     UInt64 next_bus;
     FILE *raw,*log;
+    c039_payload_callback payload;
+    void *payload_context;
     storage *memory;
 } stream;
-static int prepare(stream *s,IOUSBDeviceInterface182 **dev,const char *path,int endpoint,int telemetry) {
+static int prepare(stream *s,IOUSBDeviceInterface182 **dev,const char *path,int endpoint,int telemetry,
+                   c039_payload_callback payload,void *payload_context) {
     s->endpoint=endpoint; s->capacity=endpoint==4?2892:28;
+    s->payload=payload; s->payload_context=payload_context;
     s->intf=open_stream(dev,endpoint,&s->saved_alt);
     if(!s->intf) return 1;
     UInt8 count=0;
@@ -98,6 +103,10 @@ static int prepare(stream *s,IOUSBDeviceInterface182 **dev,const char *path,int 
     if(!s->pipe) return 1;
     if((*s->intf)->CreateInterfaceAsyncEventSource(s->intf,&s->source)) return 1;
     CFRunLoopAddSource(CFRunLoopGetCurrent(),s->source,kCFRunLoopDefaultMode);
+    if(payload) {
+        s->memory=calloc(1,sizeof(*s->memory));
+        return !s->memory;
+    }
     struct stat info;
     int fifo=lstat(path,&info)==0 && S_ISFIFO(info.st_mode);
     s->raw=fopen(path,fifo?"wb":"wbx");
@@ -122,15 +131,18 @@ static int consume(stream *s,int resubmit) {
     }
     for(unsigned i=0;i<PACKETS;i++) {
         IOUSBIsocFrame *f=&b->frames[i];
-        fprintf(s->log,"%llu,%u,%08x,%08x,%u,%zu\n",b->bus+i/8,i%8,b->result,f->frStatus,f->frActCount,s->bytes);
+        if(s->log) fprintf(s->log,"%llu,%u,%08x,%08x,%u,%zu\n",b->bus+i/8,i%8,b->result,f->frStatus,f->frActCount,s->bytes);
         s->packets++;
         if(f->frActCount>s->capacity) { s->bad++; return 1; }
         if(f->frStatus && f->frStatus!=kIOReturnUnderrun) { s->bad++; continue; }
-        if(fwrite(b->data+i*s->capacity,1,f->frActCount,s->raw)!=f->frActCount) return 1;
+        if(s->payload) {
+            if(f->frActCount && s->payload(s->payload_context,s->endpoint,b->data+i*s->capacity,
+                 f->frActCount,(b->bus+i/8)*1000+(i%8)*125)) return 1;
+        } else if(fwrite(b->data+i*s->capacity,1,f->frActCount,s->raw)!=f->frActCount) return 1;
         s->bytes+=f->frActCount;
     }
     b->done=0; s->transfers++; s->expected++;
-    if(fflush(s->log)) return 1;
+    if(s->log && fflush(s->log)) return 1;
     if(resubmit) {
         int failed=submit(s->intf,s->pipe,b,s->next_bus,s->capacity);
         s->next_bus+=PACKETS/8;
@@ -167,21 +179,22 @@ static int cleanup(stream *s) {
         s->endpoint,s->bytes,s->transfers,s->packets,s->bad);
     return failed;
 }
-int c039_iso_probe(IOUSBDeviceInterface182 **dev,const char *path,
+static int run_capture(IOUSBDeviceInterface182 **dev,const char *path,
                    int endpoint,unsigned seconds,int fifo_telemetry,int (*cancelled)(void *),void *context,
-                   int (*monitor)(void *),void *monitor_context) {
+                   int (*monitor)(void *),void *monitor_context,
+                   c039_payload_callback payload,void *payload_context) {
     if((endpoint!=0 && endpoint!=3 && endpoint!=4) || seconds>3600) return 1;
     // endpoint=0 captures EP84 and EP83 together, on a shared USB bus timeline.
     stream streams[2]={0}; unsigned count=endpoint?1:2;
-    int failed=0,restore_ep=0,restore_ts=0;
+    int failed=0,cleanup_failed=0,restore_ep=0,restore_ts=0;
     char *video=NULL,*audio=NULL;
-    if(!endpoint) {
+    if(!endpoint && !payload) {
         video=malloc(strlen(path)+11); audio=malloc(strlen(path)+14);
         if(!video || !audio) failed=1;
         else { sprintf(video,"%s.video.bin",path); sprintf(audio,"%s.audio.s16le",path); }
     }
-    if(!failed) failed=prepare(&streams[0],dev,endpoint?path:video,endpoint?endpoint:4,fifo_telemetry);
-    if(!failed && count==2) failed=prepare(&streams[1],dev,audio,3,fifo_telemetry);
+    if(!failed) failed=prepare(&streams[0],dev,endpoint?path:video,endpoint?endpoint:4,fifo_telemetry,payload,payload_context);
+    if(!failed && count==2) failed=prepare(&streams[1],dev,audio,3,fifo_telemetry,payload,payload_context);
     uint8_t ep[4]={0},ts[4]={0};
     if(!failed) failed=request(dev,0,0x18,ep) || request(dev,0,0x4,ts);
     if(!failed && (ep[0]&0x3f)) { fprintf(stderr,"refusing an already active endpoint mask\n"); failed=1; }
@@ -227,17 +240,31 @@ int c039_iso_probe(IOUSBDeviceInterface182 **dev,const char *path,
         }
     }
     if(restore_ep) {
-        failed|=request(dev,1,0x18,ep);
-        uint8_t actual[4]={0}; failed|=request(dev,0,0x18,actual) || memcmp(actual,ep,4)!=0;
+        cleanup_failed|=request(dev,1,0x18,ep);
+        uint8_t actual[4]={0}; cleanup_failed|=request(dev,0,0x18,actual) || memcmp(actual,ep,4)!=0;
     }
     for(unsigned n=0;n<count;n++) {
-        failed|=cleanup(&streams[n]);
+        cleanup_failed|=cleanup(&streams[n]);
         failed|=!streams[n].bytes || streams[n].bad;
     }
     if(restore_ts) {
-        failed|=request(dev,1,0x4,ts);
-        uint8_t actual[4]={0}; failed|=request(dev,0,0x4,actual) || memcmp(actual,ts,4)!=0;
+        cleanup_failed|=request(dev,1,0x4,ts);
+        uint8_t actual[4]={0}; cleanup_failed|=request(dev,0,0x4,actual) || memcmp(actual,ts,4)!=0;
     }
     free(video); free(audio);
-    return failed || cancelled(context);
+    return cleanup_failed?2:failed || cancelled(context);
+}
+
+int c039_iso_probe(IOUSBDeviceInterface182 **dev,const char *path,
+                   int endpoint,unsigned seconds,int fifo_telemetry,int (*cancelled)(void *),void *context,
+                   int (*monitor)(void *),void *monitor_context) {
+    return run_capture(dev,path,endpoint,seconds,fifo_telemetry,cancelled,context,monitor,monitor_context,NULL,NULL);
+}
+
+int c039_iso_capture(IOUSBDeviceInterface182 **dev,int endpoint,unsigned seconds,
+                    c039_payload_callback payload,void *payload_context,
+                    int (*cancelled)(void *),void *context,
+                    int (*monitor)(void *),void *monitor_context) {
+    if(!payload) return 1;
+    return run_capture(dev,NULL,endpoint,seconds,0,cancelled,context,monitor,monitor_context,payload,payload_context);
 }
