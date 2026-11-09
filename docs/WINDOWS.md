@@ -134,3 +134,71 @@ Do not delete the original package from the driver store. Restoration remains
 untested until an authorized binding experiment actually happens.
 
 No Setup.exe or long capture has been created. See [remaining work](ROADMAP.md).
+
+## Approved signed-driver experiment (2026-11-09)
+
+The user subsequently authorized a temporary signed WinUSB transition for MI_01,
+with original-driver recovery, preserving the parent, MI_00 and Windows security.
+This supersedes the pending-approval paragraph above for this experiment.
+
+Added `src/windows_driver.c`, built as `build/c039-driver.exe`. It is a separate,
+explicit maintenance tool; capture and automated tests never invoke it. It
+requires exactly one present `USB\VID_07CA&PID_C039&MI_01` and accepts only the
+recorded AVerPola/WinUSB starting services. It verifies both installed INFs via
+`SetupVerifyInfFileW` and checks exact INF model sections/hardware IDs. This
+prototype pins rollback to this machine's `oem13.inf`, so it is not a universal
+installer. No custom package, self-signed certificate or security bypass is used.
+
+The Windows inbox `C:\Windows\INF\winusb.inf` verified against Microsoft's
+OS catalog; WinUSB service version is 10.0.26100.9549. The original driver and
+its exported backup verified against their signed AVerPola catalog. Exported
+and installed AVerPola INF SHA-256 are identical. The original MI_01 hardware
+and software registry keys were exported locally before the class transition.
+
+Commands (mutation commands require the normal UAC elevation):
+
+```powershell
+.\build\c039-driver.exe --plan
+Start-Process D:\AverMedia\build\c039-driver.exe -ArgumentList '--bind-winusb' -Verb RunAs
+Start-Process D:\AverMedia\build\c039-driver.exe -ArgumentList '--restore-avermedia' -Verb RunAs
+```
+
+The tool changes only MI_01's setup class (Media / USBDevice), installs the
+explicit catalog-verified driver using `DiInstallDevice`, and restarts only
+that function. It registers application interface
+`{DC5D64D5-1DDB-4B6F-80CB-3472927954AE}` under MI_01 Device Parameters for WinUSB
+discovery; restoration removes that exact value without overwriting unrelated
+registrations. It attempts the prior binding again if installation fails.
+Setup-class transitions can regenerate driver software settings; the exported
+registry snapshots are evidence/backup, not a promise of exact preference
+restoration. No driver-store packages are deleted. No automatic reboot.
+
+Observed and bounded results:
+
+- An initial global-driver-list attempt returned error 0x57 before installation;
+  PnP remained unchanged. The implemented path builds a device-associated driver
+  node after the setup-class transition. An early nested GUID key mistake was
+  corrected and its exact experimental value/empty key removed.
+- WinUSB installation succeeded without reboot, problem code 0. Registration
+  of the app interface and function restart made libusb open succeed.
+- Interfaces 1 through 6, including PCM 3 and video 4, claim/release successfully.
+  MI_00 was never rebound; preflight now explicitly skips its interface 0.
+- Restoration to signed AVerPola succeeded without reboot. DirectShow video and
+  onboard audio enumeration returned. A three-second, stream-copy-to-null check
+  completed with 75 YUY2 frames at 720x576/25 and S16LE stereo PCM at 48 kHz.
+  This is driver recovery evidence, not a lip-sync, signal-quality or long-run test.
+- Rebinding to WinUSB after restoration succeeded. Current MI_01 is WinUSB.
+- Parent and MI_00 service/INF/version/problem-code snapshots match exactly
+  before and after. No trust-store, signature-policy, Secure Boot or other
+  security-setting operations were performed.
+- All 30 Python tests and the C fault-injection/frame/control tests passed again.
+  Windows ISO transfers and AV initialization are still pending at this stage.
+
+Local evidence: `driver-plan.txt`, `driver-bind.log`, `driver-restore.log`,
+`usb-winusb-access.txt`, `restored-dshow-devices.txt`, `restored-dshow-short.txt`,
+`pnp-pre-bind.json`, `pnp-restored.json`, `pnp-final-winusb.json` and
+`windows-tests-binding.txt`, all under ignored `build/`.
+
+API references: [DiInstallDevice](https://learn.microsoft.com/en-us/windows/win32/api/newdev/nf-newdev-diinstalldevice),
+[INF catalog verification](https://learn.microsoft.com/en-us/windows/win32/api/setupapi/nf-setupapi-setupverifyinffilew),
+[setup-class property changes](https://learn.microsoft.com/en-us/windows/win32/api/setupapi/nf-setupapi-setupdisetdeviceregistrypropertyw).

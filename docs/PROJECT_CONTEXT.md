@@ -36,7 +36,12 @@ transfers to the existing C transport contract. It is not a complete streaming
 backend. There is no Windows session_run, isochronous data capture, timestamp
 qualification or live HTTP source yet. See [evidence and build](WINDOWS.md).
 
-No driver bindings, registry settings, security settings or firmware changed.
+The initial stage changed no bindings. On 2026-11-09 the user explicitly approved
+a temporary signed WinUSB binding on MI_01 only. That binding and an AVerPola
+restore/rebind round trip are now verified; see WINDOWS.md. Current MI_01 uses
+the unmodified Microsoft inbox winusb.inf/WinUSB service. The tool adds its
+application discovery GUID only to MI_01 Device Parameters. Parent and MI_00
+PnP properties remain identical; no security settings/certificates changed.
 No hardware success can be inferred from compilation or mock tests. Windows 10,
 physical PAL/SECAM switching, NTSC, field dominance, lip-sync and long capture
 remain unqualified. Do not create Setup.exe before backend qualification.

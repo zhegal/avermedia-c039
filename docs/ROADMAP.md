@@ -5,9 +5,11 @@ Updated 2026-11-09. Work only on `feature/windows-support`; no main merge.
 1. Architecture review, read-only device/driver diagnostics and minimal control
    transport: implemented; see [evidence](WINDOWS.md). This is groundwork, not
    completion of the requested Windows USB capture backend.
-2. Resolve USB access with an explicitly approved driver-binding plan, or prove
-   an adequate vendor-driver API. Preserve/export the original driver package
-   and document exact rollback before any approved change. No automatic binding.
+2. Signed USB access and restore round trip verified (2026-11-09), following
+   explicit user approval: MI_01 uses Microsoft inbox WinUSB, interfaces 1-6
+   open/claim; restoring AVerPola recovers DirectShow A/V and a 75-frame short
+   capture. Parent and MI_00 unchanged. This is an explicit machine-specific
+   maintenance experiment, not an installer or automatic binding in capture.
 3. Implement Windows ISO scheduling for both EP84 video and EP83 PCM, bounded
    queues, per-packet errors, common bus timestamps, cancellation and drain.
    Descriptor layout on Windows must be checked rather than copied from IOKit.

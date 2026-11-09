@@ -32,6 +32,7 @@ def main():
         subprocess.run(compiler + flags + list(sources) + list(extra) + ['-o', 'build/' + output], cwd=ROOT, check=True)
 
     build('c039-probe.exe', ['src/windows_probe.c', 'src/usb_libusb.c', 'src/av_init.c', 'src/video_standard.c'], [str(library)])
+    build('c039-driver.exe', ['src/windows_driver.c'], ['-lsetupapi'])
     shutil.copy2(dll, ROOT / 'build/libusb-1.0.dll')
     build('c039-frame.dll', ['src/frame_decoder.c'], ['-shared'])
     for name, sources in (

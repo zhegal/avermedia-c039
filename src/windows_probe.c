@@ -60,6 +60,7 @@ int main(int argc,char **argv) {
                 const struct libusb_interface *interface=&config->interface[n];
                 if(!interface->num_altsetting) continue;
                 int number=interface->altsetting[0].bInterfaceNumber;
+                if(number==0) { puts("interface=0 preserved outside MI_01 capture function"); continue; }
                 code=libusb_claim_interface(handle,number);
                 printf("claim interface=%d: %s\n",number,libusb_error_name(code));
                 if(code) failed=1;
