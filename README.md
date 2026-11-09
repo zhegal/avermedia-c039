@@ -11,7 +11,8 @@ USB ID: `07ca:c039`. Hardware decoder ID: `0x5a3e` (Conexant CX23102).
 - PAL/SECAM 720×576 UYVY, 25 frames/s, two fields preserved.
 - Nine decoder format profiles, regional Composite aliases and full AFD Auto.
 - Stereo signed 16-bit little-endian PCM at 48 kHz.
-- Live NUT/MPEG-TS output to stdout or a new file; FFmpeg/ffplay preview.
+- Persistent native video/RCA preview, independent of recording/muxer continuity.
+- Live NUT/MPEG-TS output to stdout or a new file; strict FFmpeg/ffplay diagnostics.
 - Local HTTP MPEG-TS source with independent, bounded client queues.
 - Bounded queues and in-memory packet telemetry for indefinite streaming.
 - Offline frame assembly, USB timestamp alignment and MPEG-2/MP2 export.
@@ -31,7 +32,8 @@ Camera Extension. System camera/audio integration is a separate track.
 
 - macOS and Xcode developer tools with IOKit and IOUSBHost SDKs.
 - Python 3.10 or later.
-- FFmpeg and ffplay for preview and encoding.
+- Swift/AppKit/AVAudioEngine for native preview (included with Xcode tools).
+- FFmpeg for encoding/streaming; ffplay for strict diagnostic preview.
 
 Validated on macOS 27.0.1, Apple M4, arm64, Clang 21 and Python 3.12.
 No libusb or additional Python packages are required.
@@ -138,24 +140,26 @@ The legacy driver calls NTSC-4.43 `NTSC_433`; `ntsc-433` is an alias for
 python3 tools/preview_control.py --standard auto
 ```
 
-The Tkinter panel selects Auto or any listed standard and displays the decoder's detected
-format and synchronization status. A separate ffplay window shows video and
-plays stereo RCA audio at 48 kHz, with an additional 6 dB attenuation.
+The optional Tkinter panel selects Auto or any listed standard and displays
+the decoder's detected format and synchronization status. The native preview
+window also includes its own standard selector. It shows video and plays
+stereo RCA audio at 48 kHz, with an additional 6 dB attenuation.
 Stop it before using another capture tool.
 
 Auto continuously reads the decoder's AFD status and requires three stable
 observations before updating chroma and native timing. It accepts all nine
-reported decoder formats, including 625/50 ↔ 525/59.94 transitions. The panel
-restarts its player when native height/frame rate changes. A real mixed-standard VCR tape was
+reported decoder formats, including 625/50 ↔ 525/59.94 transitions. The native
+viewer accepts both native frame sizes in the same window. A real mixed-standard VCR tape was
 confirmed by the user to display correct color in SECAM and after a running
 SECAM→PAL transition. The reverse physical transition and all 525-line signals
 still need validation.
 The panel requires Tkinter; command-line streaming does not.
 
-The panel's A/V preview corrects short timing disruptions for viewing and safely
-restarts capture after a stream error. Strict live recording still stops on a
-frame timestamp gap instead of hiding loss. `tools/preview_av.py --strict`
-provides the same strict behavior in the standalone A/V preview.
+During rewind or missing complete fields, the viewer retains its last image
+and displays a waiting message. Audio playback is independent: missing PCM
+produces silence. Source recovery and manual standard changes retain the same
+window. A failed USB restoration stops automatic recovery. Strict live recording
+still stops on a frame timestamp gap instead of hiding loss.
 
 Standalone NUT/MPEG-TS tools use a fixed pipe geometry per invocation. Auto
 starts at 576/25 unless `--auto-geometry ntsc` is selected. These tools stop
@@ -203,9 +207,19 @@ Connect a PAL Composite source and stereo RCA audio, then run:
 python3 tools/preview_av.py --standard pal --seconds 600 --audio-attenuation-db 6
 ```
 
-Close the player window or press Ctrl+C to stop. The preview uses FIFOs;
-packet metadata is temporary. The default log is `build/preview-av.log`.
-`tools/preview.py` provides a video-only preview.
+The first launch builds `build/C039Preview.app`. It uses the native C USB
+backend, AppKit/CoreImage for video and AVAudioEngine for sound. No FFmpeg,
+packet CSV or media FIFO is used in this default preview. It keeps only the
+latest image and a bounded 250 ms PCM ring; playback prefill is 40 ms.
+Audio overflow is counted and affects preview only. Analog lip-sync is not calibrated.
+
+Close the window or press Ctrl+C to stop and restore USB controls. The default
+log is `build/preview-av.log`. `--seconds 0` runs until stopped. Select Auto
+or a manual standard at the bottom of the window. Missing video has no timeout
+that closes the window; complete frames resume automatically when available.
+
+`tools/preview_av.py --strict` retains the FFmpeg/ffplay diagnostic pipeline
+and stops at frame gaps. `tools/preview.py` is the older video-only preview.
 
 Only one capture process may own the device. Stop preview before recording.
 
@@ -266,17 +280,20 @@ Physical Composite PAL tests used a menu and moving video with RCA audio.
 | Video clock versus nominal 25 fps | Approximately −14.1 ms over 300 seconds |
 | VCR auto mode | Correct SECAM color and continuous SECAM→PAL transition confirmed by user |
 | Further VCR observation | Logs contain repeated PAL↔SECAM transitions; reverse-transition picture quality is unconfirmed |
-| Unstable VHS input | Preview encountered audio-pipe stalls and missing complete frames; controller restored USB and restarted |
+| Rewind preview | Persistent native window and returning picture confirmed by user on the physical VCR |
+| Preview dropout/recovery | Injected 12-second frame-display gap and native USB-session restart retained one window; audio continued during the display gap |
 | Live pipeline | NUT→FFmpeg decode and direct MPEG-TS recording tested on hardware |
 | HTTP clients | Live VLC picture; simultaneous FFmpeg decode, stream inspection and copy recording |
 | Stream shutdown | SIGTERM, early reader exit and a stalled downstream tested; USB restored |
 | Lifecycle | Finite capture, preview SIGTERM, player exit, restart and control restoration tested |
-| Software tests | 30 Python tests; native parser tests; 4,139 injected control-transfer failures; C ASan/UBSan passed |
+| Software tests | 30 Python tests; native parser and concurrent preview PCM tests; 4,139 injected control-transfer failures; C ASan/UBSan passed |
 
 Initial and final incomplete fields are discarded. Packet timestamps align
 USB delivery, not the unmeasured internal analog video/audio latency.
-The preview restarts above are recovery events, not evidence of uninterrupted
-tape recording. Full-cassette recording is not yet validated.
+The earlier FFmpeg preview stopped/restarted at frame gaps and audio-pipe
+stalls. The persistent native viewer replaces that default path. Its successful
+rewind recovery is not evidence of uninterrupted archival recording.
+Full-cassette recording is not yet validated.
 
 ## Next milestones
 
@@ -300,6 +317,9 @@ hardware coverage. Every untested standard must remain marked unvalidated.
 - NTSC variants and PAL-M/N/Nc/60 settings have no physical signal validation.
 - SECAM color and SECAM→PAL auto switching were checked on a VCR; long timed
   packet/audio audits and PAL→SECAM transition validation remain outstanding.
+- At one specific tape edit, Auto temporarily reported PAL while the VCR
+  remained in SECAM; transient color distortion was also seen with forced
+  SECAM/MESECAM. This localized transition case needs further investigation.
 - S-Video input selection is not implemented.
 - Temporal field dominance and analog lip-sync offset need a controlled test.
 - Long-term clock-drift correction is not implemented.
@@ -323,6 +343,7 @@ result fields are not treated as immutable state.
 - `src/http_stream.py`, `tools/serve.py`: local MPEG-TS fanout service.
 - `src/video_standard.c`: decoder profiles and regional Composite aliases.
 - `src/capture_device.c`, `src/frame_decoder.c`: embeddable native camera backend.
+- `preview/`, `src/preview_audio.c`, `tools/build_preview.py`: persistent native A/V viewer.
 - `camera/`, `tools/build_camera.py`: camera extension and activation app prototype.
 - `src/iso_probe.c`: asynchronous ISO transport and packet timestamps.
 - `src/probe.c`: device access and capture CLI; `--help` lists modes.

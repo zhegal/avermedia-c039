@@ -1,7 +1,8 @@
 #!/usr/bin/env python3
 # SPDX-License-Identifier: GPL-2.0-or-later
-"""Live C039 preview using the shared streaming engine and ffplay."""
+"""Persistent native C039 A/V preview; --strict uses the FFmpeg diagnostic pipeline."""
 import argparse
+import os
 from pathlib import Path
 import shutil
 import signal
@@ -23,11 +24,25 @@ def main():
     p.add_argument('--seconds', type=int, default=600, help='0: until interrupted')
     p.add_argument('--audio-attenuation-db', type=int, default=6)
     p.add_argument('--strict', action='store_true', help='stop at video gaps instead of correcting viewing cadence')
+    p.add_argument('--control-stdin', action='store_true', help=argparse.SUPPRESS)
     p.add_argument('--log', type=Path, default=ROOT / 'build/preview-av.log')
     args = p.parse_args()
+    if not args.strict:
+        if not 0 <= args.seconds <= 3600 or not 0 <= args.audio_attenuation_db <= 48:
+            p.error('invalid duration or attenuation')
+        binary = ROOT / 'build/C039Preview.app/Contents/MacOS/C039Preview'
+        subprocess.run(['make', str(binary.relative_to(ROOT))], cwd=ROOT, check=True)
+        args.log.parent.mkdir(parents=True, exist_ok=True)
+        with args.log.open('w') as log:
+            os.dup2(log.fileno(), 1); os.dup2(log.fileno(), 2)
+        command = [str(binary), '--standard', args.standard, '--seconds', str(args.seconds),
+                   '--audio-attenuation-db', str(args.audio_attenuation_db)]
+        if args.control_stdin:
+            command.append('--control-stdin')
+        os.execv(str(binary), command)
     try:
         engine = CaptureStream(standard=args.standard, seconds=args.seconds,
-                               attenuation=args.audio_attenuation_db, conceal_gaps=not args.strict,
+                               attenuation=args.audio_attenuation_db, conceal_gaps=False,
                                auto_geometry=args.auto_geometry)
     except ValueError as error:
         p.error(str(error))

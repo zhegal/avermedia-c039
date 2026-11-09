@@ -18,6 +18,9 @@
 !/camera/
 !/camera/*.swift
 !/camera/*.h
+!/preview/
+!/preview/*.swift
+!/preview/*.h
 !/tests/
 !/tests/*.c
 !/tests/*.py

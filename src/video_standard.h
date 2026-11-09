@@ -13,6 +13,7 @@ typedef struct {
 typedef struct { const char *name; unsigned id; } c039_standard_alias;
 extern const c039_standard_alias c039_standard_names[];
 extern const size_t c039_standard_name_count;
+const c039_standard_alias *c039_standard_name_at(size_t index);
 const c039_video_standard *c039_standard(unsigned id);
 unsigned c039_standard_parse(const char *name);
 unsigned c039_standard_detect(unsigned decoder_format);

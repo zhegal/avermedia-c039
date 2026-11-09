@@ -12,7 +12,7 @@
 
 struct c039_session {
     atomic_bool stopped;
-    unsigned standard,seconds;
+    unsigned standard,seconds,attenuation;
     int endpoint,used,transport_result;
     IOUSBDeviceInterface182 **device;
     c039_sample_callback payload;
@@ -22,11 +22,12 @@ struct c039_session {
 c039_session *c039_session_create(unsigned standard,int endpoint,unsigned seconds) {
     if((standard!=C039_AUTO && !c039_standard(standard)) || (endpoint!=0 && endpoint!=4) || seconds>3600) return NULL;
     c039_session *s=calloc(1,sizeof(*s));
-    if(s) { atomic_init(&s->stopped,0); s->standard=standard; s->endpoint=endpoint; s->seconds=seconds; }
+    if(s) { atomic_init(&s->stopped,0); s->standard=standard; s->endpoint=endpoint; s->seconds=seconds; s->attenuation=6; }
     return s;
 }
 void c039_session_stop(c039_session *s) { if(s) atomic_store(&s->stopped,1); }
 void c039_session_destroy(c039_session *s) { free(s); }
+void c039_session_set_attenuation(c039_session *s,unsigned db) { if(s && !s->used && db<=48) s->attenuation=db; }
 void c039_session_set_standard_callback(c039_session *s,void (*callback)(void *,const c039_video_standard *)) {
     if(s && !s->used) s->standard_changed=callback;
 }
@@ -81,7 +82,7 @@ int c039_session_run(c039_session *s,c039_sample_callback payload,void *context)
     if(!code) {
         c039_transport transport={.context=s,.control=control,.sleep_ms=delay,.cancelled=cancelled,
             .on_ready=ready,.video_standard=s->standard,.standard_changed=changed,
-            .line_audio=s->endpoint==0,.audio_attenuation_db=6};
+            .line_audio=s->endpoint==0,.audio_attenuation_db=s->attenuation};
         uint16_t id=0;
         failed=c039_av_probe(&transport,&id,1);
         IOReturn closed=(*dev)->USBDeviceClose(dev);

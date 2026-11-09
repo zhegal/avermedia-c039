@@ -13,5 +13,6 @@ int c039_session_run(c039_session *,c039_sample_callback,void *);
 // Thread-safe; run() restores controls before returning. Never destroy while running.
 void c039_session_stop(c039_session *);
 void c039_session_set_standard_callback(c039_session *,void (*)(void *,const c039_video_standard *));
+void c039_session_set_attenuation(c039_session *,unsigned db);
 void c039_session_destroy(c039_session *);
 #endif

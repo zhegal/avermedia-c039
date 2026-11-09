@@ -25,6 +25,9 @@ const c039_standard_alias c039_standard_names[]={
     {"secam-l",C039_SECAM},{"secam-l1",C039_SECAM},
 };
 const size_t c039_standard_name_count=sizeof(c039_standard_names)/sizeof(c039_standard_names[0]);
+const c039_standard_alias *c039_standard_name_at(size_t index) {
+    return index<c039_standard_name_count?&c039_standard_names[index]:NULL;
+}
 const c039_video_standard *c039_standard(unsigned id) {
     for(size_t i=0;i<sizeof(profiles)/sizeof(profiles[0]);i++) if(profiles[i].id==id) return &profiles[i];
     return NULL;

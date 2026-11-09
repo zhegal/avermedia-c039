@@ -12,7 +12,7 @@ import time
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / 'src'))
-from video_standards import NAMES, STANDARDS
+from video_standards import NAMES
 
 
 class Controls:
@@ -27,8 +27,6 @@ class Controls:
         self.next_start = 0
         self.mode = tk.StringVar(value=standard)
         self.selection = tk.StringVar(value=standard.upper())
-        self.auto_geometry = 'pal'
-        self.active_geometry = None
         self.status = tk.StringVar(value='Ожидание изображения…')
         window.title('AVerMedia C039 — стандарт входа')
         window.geometry('470x230')
@@ -54,7 +52,11 @@ class Controls:
         self.wanted = True
         self.status.set('Переключение режима…')
         if self.process is not None and self.process.poll() is None:
-            self.process.terminate()
+            try:
+                self.process.stdin.write(f'standard {self.mode.get()}\n'); self.process.stdin.flush()
+                self.active_mode = self.mode.get()
+            except (OSError, BrokenPipeError):
+                self.process.terminate()
 
     def start(self):
         self.wanted = True
@@ -73,6 +75,10 @@ class Controls:
     def poll(self):
         alive = self.process is not None and self.process.poll() is None
         if self.process is not None and not alive:
+            if self.process.returncode == 0 and not self.closing:
+                self.wanted = False
+            if self.process.stdin:
+                self.process.stdin.close()
             if self.player_log:
                 self.player_log.close(); self.player_log = None
             self.process = None
@@ -82,14 +88,13 @@ class Controls:
         if self.wanted and not alive and time.monotonic() >= self.next_start:
             self.counter += 1
             self.active_mode = self.mode.get()
-            self.active_geometry = self.auto_geometry
             self.log = Path(str(self.prefix) + f'-{self.counter}.log')
             self.log.parent.mkdir(parents=True, exist_ok=True)
             self.player_log = Path(str(self.prefix) + f'-{self.counter}.wrapper.log').open('w')
             self.process = subprocess.Popen([sys.executable, str(ROOT / 'tools/preview_av.py'),
-                '--standard', self.active_mode, '--auto-geometry', self.auto_geometry,
+                '--standard', self.active_mode, '--control-stdin',
                 '--seconds', '0', '--log', str(self.log)],
-                stdout=self.player_log, stderr=self.player_log)
+                stdin=subprocess.PIPE, text=True, stdout=self.player_log, stderr=self.player_log)
             self.status.set(f'Режим {self.active_mode.upper()}: ожидание сигнала…')
         elif alive:
             try:
@@ -105,12 +110,6 @@ class Controls:
                     message = f'Сигнал есть; настройка {selected}' if stable else 'Нет устойчивой синхронизации'
                     if stable and self.active_mode == 'auto' and detected != selected:
                         message = f'Переход {selected} → {detected}…'
-                    profile = STANDARDS.get(selected.lower())
-                    if stable and self.active_mode == 'auto' and profile and profile['height']:
-                        self.auto_geometry = 'ntsc' if profile['height'] == 480 else 'pal'
-                        if self.auto_geometry != self.active_geometry:
-                            message = 'Изменение размера и частоты: перезапуск окна…'
-                            self.process.terminate()
                     self.status.set(f'Режим: {self.active_mode.upper()}   Декодер: {detected}\n' + message)
             except (OSError, KeyError, ValueError):
                 pass

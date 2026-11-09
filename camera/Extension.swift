@@ -103,9 +103,9 @@ final class CameraDevice: NSObject, CMIOExtensionDeviceSource {
                 c039_frame_decoder_feed(owner.decoder, bytes, count)
                 return 0
             }, Unmanaged.passUnretained(self).toOpaque())
-            c039_session_destroy(capture)
             queue.async { [self] in
                 session = nil
+                c039_session_destroy(capture)
                 log.info("USB capture returned \(code)")
                 // Retry only after the previous run has restored and closed USB.
                 if clients > 0 && code != 2 {
