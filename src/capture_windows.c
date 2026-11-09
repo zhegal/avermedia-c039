@@ -17,6 +17,7 @@
 int c039_windows_set_log_path(const wchar_t *path) {
     if(!path || !*path) return 1;
     if(!_wfreopen(path,L"a",stderr)) return 1;
+    setvbuf(stderr,NULL,_IONBF,0);
     fputs("native_log_redirected=yes\n",stderr); fflush(stderr);
     return 0;
 }

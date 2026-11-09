@@ -75,3 +75,10 @@ User clarified continuous same-family recordings from legacy scripts/WPF are
 the target: docs/LEGACY_CAPTURE_COMPARISON.md. Retry delay is not the solution.
 A future timestamp-aware path must preserve positive A/V gaps without concealment;
 0.1.2 is only rollback/diagnostics, not that implementation.
+
+0.2.0 continuous recording: docs/WINDOWS_CONTINUOUS_RECORDING.md. GUI archives
+use original USB-derived PTS and one file through compatible PAL/SECAM, not
+fixed-cadence failure/restart. Preserve positive gaps, all admitted samples,
+no frame repair/raw pre-roll. Geometry changes still require a native new part.
+User has an NTSC cassette; current old-viewer output is PAL-60. Physical 0.2.0
+checks are pending a manual handoff, not lack of tape. Do not close the viewer.

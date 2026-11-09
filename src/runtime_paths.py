@@ -35,6 +35,14 @@ def default_recordings_folder():
     return Path(__file__).resolve().parents[1] / 'build/recordings'
 
 
+def timestamp_ffmpeg_path():
+    path = (binary_path('ffmpeg-timestamps.exe') if getattr(sys,'frozen',False) else
+            Path(__file__).resolve().parents[1]/'build/timestamp-ffmpeg/bin/ffmpeg.exe')
+    if not path.is_file():
+        raise FileNotFoundError('Missing timestamp-aware encoder: '+str(path))
+    return str(path)
+
+
 def diagnostics_root():
     override = os.environ.get('C039_DIAGNOSTICS_DIR')
     if override:

@@ -317,7 +317,8 @@ def main():
                         record_status.set('Ожидание устойчивого сигнала · запись включена')
                     else:
                         count=current.engine.stats.video_frames if current.engine else 0
-                        record_status.set(f"Часть {len(current.state['parts'])}: {count} кадров")
+                        record_status.set(f"Часть {len(current.state['parts'])}: {count} кадров" if count else
+                                          'Запись включена · ожидание первого полного кадра')
                     record_label.configure(fg='white')
                     record_status.set(record_status.get()+preference_warning[0])
                 elif current.state['phase']=='failed':
@@ -326,6 +327,13 @@ def main():
                 else:
                     record_status.set(f"Запись остановлена · частей: {len(current.state['parts'])}")
                     record_label.configure(fg='white')
+                timing=getattr(current.engine,'windows_status',{}) if current.engine else {}
+                if timing.get('time_policy')=='original-usb-pts-v2':
+                    warnings=sum(timing.get(key,0) for key in ('source_gap_events','native_errors',
+                        'signal_loss_events','source_packet_errors','invalid_field_pairs'))
+                    if warnings:
+                        record_status.set(record_status.get()+f" · событий источника: {warnings}")
+                        if current.state['phase']!='failed': record_label.configure(fg='#ffd280')
             status.set(f"Режим: {source.standard.upper()}  |  Детектор: {detected}  |  H/V lock: {'да' if lock else 'нет'}"
                 f"  |  {'LIVE' if now-last_frame[0] < 1 else 'Ожидание сигнала / полей'}\n"
                 f"Исходник: 720×{source.state['height']} @ {source.state['rate']}, interlaced  |  Показ 4:3"

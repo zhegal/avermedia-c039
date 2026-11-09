@@ -71,9 +71,29 @@ def self_test(folder):
         raise RuntimeError('Bundled video profile self-test failed')
     if (audio['codec_name'],audio['sample_rate'],audio['channels']) != ('mp2','48000',2):
         raise RuntimeError('Bundled audio profile self-test failed')
+    from windows_timed import transport_header,packet_header,mux_command
+    from capture_stream import CaptureStream
+    timed=folder/'self-test-timed.vhst'
+    with timed.open('xb') as stream:
+        stream.write(transport_header(576,25,1,'tff',0))
+        for pts in (0,10000000):
+            picture=b'\x80\x20\x80\x20'*(720*576//2)
+            pcm=b'\0'*(1920*4)
+            for index,data in ((0,picture),(1,pcm)):
+                stream.write(packet_header(index,pts,400000,len(data))); stream.write(data)
+    timed_media=folder/'self-test-timed.ts'
+    with timed_media.open('xb') as target:
+        subprocess.run(mux_command(CaptureStream(container='mpegts',field_order='tff'),str(timed)),
+            stdout=target,stderr=sys.stderr,check=True,creationflags=subprocess.CREATE_NO_WINDOW)
+    timed_probe=json.loads(subprocess.check_output([ffprobe,'-v','error','-select_streams','v:0',
+        '-show_frames','-show_entries','frame=best_effort_timestamp_time','-of','json',str(timed_media)],
+        creationflags=subprocess.CREATE_NO_WINDOW))
+    frames=timed_probe['frames']
+    if len(frames)!=2 or abs(float(frames[1]['best_effort_timestamp_time'])-float(frames[0]['best_effort_timestamp_time'])-1)>1/90000:
+        raise RuntimeError('Bundled timestamp encoder changed frame count or gap')
     return dict(passed=True, usb_opened=False, audio_device_opened=False,
                 tk_pillow=True, native_dll=True, native_c_log=True, standards=list(NAMES),
-                bundled_encode_decode=True, bwdif=True, device=device_status())
+                bundled_encode_decode=True, original_pts_gap=True, bwdif=True, device=device_status())
 
 
 def main():

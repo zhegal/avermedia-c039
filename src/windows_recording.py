@@ -16,8 +16,9 @@ from runtime_paths import diagnostics_root
 
 
 class StrictRecording:
-    def __init__(self, source, path, *, field_order, video_bitrate=12, seconds=0, diagnostics_dir=None):
+    def __init__(self, source, path, *, field_order, video_bitrate=12, seconds=0, diagnostics_dir=None, timestamped=False):
         self.source = source; self.path = Path(path).resolve()
+        self.timestamped = timestamped
         if self.path.exists():
             raise FileExistsError('Recording already exists; choose a new filename')
         self.diagnostics = Path(diagnostics_dir or diagnostics_root()/'Recordings') / uuid.uuid4().hex
@@ -42,6 +43,7 @@ class StrictRecording:
             width=720, height=height, rate=f'{numerator}/{denominator}', field_order=field_order,
             field_dominance_physically_calibrated=False, video_bitrate_mbit=video_bitrate,
             loss_policy='strict-no-concealment', requested_seconds=seconds,
+            time_policy='original-usb-pts-v2' if timestamped else 'fixed-cadence-guard',
             container=container,
             disk_budget_bytes=needed, initial_free_bytes=free, return_code=None, errors=[])
         with self.manifest.open('x', encoding='utf-8') as target:
@@ -70,7 +72,12 @@ class StrictRecording:
     def _run(self):
         try:
             try:
-                code = run_windows(self.engine, self.output, self.log_path,
+                if self.timestamped:
+                    from windows_timed import run_timed
+                    runner=run_timed
+                else:
+                    runner=run_windows
+                code = runner(self.engine, self.output, self.log_path,
                                    native_factory=self.source.session_factory)
             finally:
                 self.output.close()

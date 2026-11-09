@@ -17,6 +17,13 @@ def verify(manifest, *, inspect_interrupted=False):
     interrupted = state.get('state') != 'captured-unverified' or state.get('return_code') != 0 or bool(state.get('errors'))
     if interrupted and not (inspect_interrupted and state.get('state') == 'failed'):
         raise ValueError('recording is incomplete/failed; refusing successful archival qualification')
+    if state.get('time_policy')=='original-usb-pts-v2':
+        from verify_timed_recording import verify_timed
+        result=verify_timed(state)
+        result.update(verified=not interrupted,retained_media_checks_passed=True,
+                      continuity='interrupted' if interrupted else ('continuous' if result['full_source_continuity'] else 'gapped'),
+                      source_errors=state.get('errors',[]))
+        return result
     ffprobe = ffmpeg_path('ffprobe')
     if not ffprobe:
         raise RuntimeError('ffprobe is required for full offline verification')

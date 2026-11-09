@@ -34,3 +34,9 @@ and asynchronous isochronous transfers. It is not a Linux kernel module.
 
 The SAV/EAV parser uses the cx231xx-video.c protocol as a technical reference.
 No firmware image, vendor driver binary or captured media is distributed.
+
+Windows timestamp encoder: references/ffmpeg/vhsts.c (LGPL-2.1-or-later) adapts
+the user's vhs-recorder-tool packet transport with UYVY/525-line support. The
+separate FFmpeg build reuses that project's MPEG-2 precision/MPEG-PS PTS fixes.
+Build recipe, source pin and corresponding sources: tools/build_timestamp_ffmpeg.py
+and references/ffmpeg. This encoder does not replace the system FFmpeg.

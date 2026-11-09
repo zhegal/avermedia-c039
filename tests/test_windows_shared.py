@@ -11,6 +11,24 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1] / 'src'))
 
 @unittest.skipUnless(os.name == 'nt', 'Windows source binding')
 class SharedSource(unittest.TestCase):
+    def test_timed_subscription_survives_epoch_and_drains_admitted_prefix_on_stop(self):
+        source=self.source(); got=[]; events=[]; started=threading.Event()
+        session=source.session_factory(on_standard=lambda *args:started.set(),
+            on_batch=lambda *args:got.append(args),allow_discontinuities=True,
+            on_discontinuity=lambda *args:events.append(args),seconds=0)
+        thread=threading.Thread(target=session.run); thread.start()
+        self.assertTrue(started.wait(2))
+        source._publish(('batch',4,b'old',((0,3,0),),1000000))
+        source._publish(('end',1)); source._publish(('epoch',2))
+        source._publish(('batch',4,b'new',((0,3,0),),3000000))
+        session.stop()
+        source._publish(('batch',4,b'after stop',((0,10,0),),4000000))
+        thread.join(timeout=2)
+        self.assertFalse(thread.is_alive())
+        self.assertEqual([row[1] for row in got],[b'old',b'new'])
+        self.assertEqual([row[0] for row in events],['native_end','epoch'])
+        self.assertFalse(source.closing.is_set())
+
     def source(self):
         from windows_preview import PreviewCapture
         source = PreviewCapture(None)

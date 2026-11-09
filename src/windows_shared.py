@@ -18,6 +18,7 @@ class SharedSession:
         self.closed_endpoints = set()
         self.stop_cutoff = None
         self.stop_deadline = None
+        self.admission_closed = False
 
     def offer(self, item):
         if self.stopped.is_set() or self.failure:
@@ -40,6 +41,8 @@ class SharedSession:
                 try:
                     item = self.queue.get(timeout=.1)
                 except queue.Empty:
+                    if self.admission_closed:
+                        break
                     if self.stop_deadline and time.monotonic() >= self.stop_deadline:
                         raise StreamError('shared stop cutoff did not drain within bounded deadline')
                     if self.source.done.is_set():
@@ -52,8 +55,14 @@ class SharedSession:
                     if self.options.get('on_signal'):
                         self.options['on_signal'](values[0])
                 elif kind == 'epoch':
-                    raise StreamError('USB source epoch changed; strict continuity ended, viewer remains open')
+                    if self.options.get('allow_discontinuities'):
+                        self.options['on_discontinuity']('epoch',values)
+                    else:
+                        raise StreamError('USB source epoch changed; strict continuity ended, viewer remains open')
                 elif kind == 'end':
+                    if self.options.get('allow_discontinuities') and not self.source.closing.is_set():
+                        self.options['on_discontinuity']('native_end',values)
+                        continue
                     if values[0]:
                         raise StreamError(f'USB source ended with error {values[0]}; viewer remains open')
                     break
@@ -88,6 +97,13 @@ class SharedSession:
             self.source.unsubscribe(self)
 
     def stop(self):
+        if self.options.get('allow_discontinuities'):
+            # Close admission atomically with publication and drain every item
+            # already offered. No USB operation and no per-stream tail trimming.
+            with self.source.subscriber_lock:
+                self.source.subscribers.discard(self)
+                self.admission_closed = True
+            return
         if self.stop_cutoff is not None or self.stopped.is_set():
             return
         with self.source.subscriber_lock:

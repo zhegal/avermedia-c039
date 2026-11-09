@@ -21,7 +21,7 @@ class SessionControl(unittest.TestCase):
             # No subscribe method: readiness must not allocate a raw pre-roll.
         source=Source()
         folder=ROOT/'build/session-tests'/uuid.uuid4().hex; folder.mkdir(parents=True)
-        session=RecordingSession(source,folder/'record.ts',field_order='tff',diagnostics_dir=folder/'private')
+        session=RecordingSession(source,folder/'record.ts',field_order='tff',diagnostics_dir=folder/'private',continuous=False)
         session.state['parts'].append(dict(state='failed'))
         self.assertFalse(session._ready())
         source.state.update(complete_frames=3,full_streak=3,last_complete_monotonic=time.monotonic())

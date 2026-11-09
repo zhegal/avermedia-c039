@@ -1,0 +1,42 @@
+--- a/libavformat/mpegenc.c
++++ b/libavformat/mpegenc.c
+@@ -84,6 +84,7 @@
+     int64_t vcd_padding_bytes_written;
+ 
+     int preload;
++    int vhs_pts; /* keep every video access unit timestamp explicit */
+ } MpegMuxContext;
+ 
+ extern const AVOutputFormat ff_mpeg1vcd_muxer;
+@@ -786,6 +787,8 @@
+         }
+ 
+         stuffing_size = payload_size - av_fifo_can_read(stream->fifo);
++        if (s->vhs_pts && ctx->streams[stream_index]->codecpar->codec_type == AVMEDIA_TYPE_VIDEO)
++            stuffing_size = payload_size - FFMIN(av_fifo_can_read(stream->fifo), stream->premux_packet->unwritten_size);
+ 
+         // first byte does not fit -> reset pts/dts + stuffing
+         if (payload_size <= trailer_size && pts != AV_NOPTS_VALUE) {
+@@ -1095,7 +1098,13 @@
+         timestamp_packet = timestamp_packet->next;
+     }
+ 
+-    if (timestamp_packet) {
++    if (s->vhs_pts && st->codecpar->codec_type == AVMEDIA_TYPE_VIDEO) {
++        PacketDesc *current = stream->premux_packet;
++        int first = current->unwritten_size == current->size;
++        es_size = flush_packet(ctx, best_i, first ? current->pts : AV_NOPTS_VALUE,
++                               first ? current->dts : AV_NOPTS_VALUE, scr,
++                               first ? 0 : current->unwritten_size);
++    } else if (timestamp_packet) {
+         av_log(ctx, AV_LOG_TRACE, "dts:%f pts:%f scr:%f stream:%d\n",
+                 timestamp_packet->dts / 90000.0,
+                 timestamp_packet->pts / 90000.0,
+@@ -1280,6 +1289,7 @@
+ #define OFFSET(x) offsetof(MpegMuxContext, x)
+ #define E AV_OPT_FLAG_ENCODING_PARAM
+ static const AVOption options[] = {
++    { "vhs_pts", "Preserve a timestamp on every video access unit.", OFFSET(vhs_pts), AV_OPT_TYPE_BOOL, { .i64 = 0 }, 0, 1, E },
+     { "muxrate", NULL,                                          OFFSET(user_mux_rate), AV_OPT_TYPE_INT, { .i64 = 0 }, 0, ((1<<22) - 1) * (8 * 50), E },
+     { "preload", "Initial demux-decode delay in microseconds.", OFFSET(preload),  AV_OPT_TYPE_INT, { .i64 = 500000 }, 0, INT_MAX, E },
+     { NULL },

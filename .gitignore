@@ -13,6 +13,8 @@
 !/LICENSES/MIT.txt
 !/references/
 !/references/linux-sources.json
+!/references/ffmpeg/
+!/references/ffmpeg/*
 !/src/
 !/src/*.c
 !/src/*.h

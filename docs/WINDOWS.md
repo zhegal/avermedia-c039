@@ -505,3 +505,20 @@ opening USB or changing capture/register logic. 57 tests pass. The exact USB cau
 and 0.1.2 physical regression remain pending; do not blame CPU without evidence.
 See [WINDOWS_RECOVERY_REGRESSION.md](WINDOWS_RECOVERY_REGRESSION.md). No user files
 were deleted/rewritten and no active viewer was terminated by the agent.
+
+## Continuous source-PTS recording implemented (2026-11-10, 0.2.0)
+
+GUI recording now uses one timestamp-aware encoder/TS or MPG file through compatible
+PAL/SECAM transitions, positive gaps and monotonic-clock native recovery. There is
+no recovered-frame gate/raw pre-roll, no CFR repair or independent audio rebase.
+Original USB-derived picture/PCM timing is transported through VHST0002; the donor
+FFmpeg timing/PS patches are reused in a separate app-local build. 525/59.94 native
+formats and explicit cross-family rollover are implemented. Source warnings remain
+visible after Stop; full trace/decode verification distinguishes valid media from
+unbroken source continuity. 69 software tests pass, including first recovered
+picture pixel content, long gaps, variable PCM and 480/29.97 TFF/BFF.
+See [WINDOWS_CONTINUOUS_RECORDING.md](WINDOWS_CONTINUOUS_RECORDING.md).
+The user has an NTSC cassette and confirms it is playing; the old viewer reports
+stable PAL-60 output with H/V/chroma lock. Do not keep deferring for lack of tape,
+but do not call this genuine NTSC 3.58 or a new recording qualification. The active
+old viewer was left open. Physical regression of 0.2.0 awaits manual user handoff.

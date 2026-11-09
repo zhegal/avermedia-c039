@@ -14,13 +14,14 @@ from windows_recording import StrictRecording
 
 class RecordingSession:
     def __init__(self, source, path, *, field_order, video_bitrate=12, auto_restart=True,
-                 seconds=0, part_factory=StrictRecording, ready=None, diagnostics_dir=None):
+                 seconds=0, part_factory=StrictRecording, ready=None, diagnostics_dir=None, continuous=True):
         self.source, self.path = source, Path(path).resolve()
         if self.path.exists():
             raise FileExistsError('Recording already exists; choose a new filename')
         self.field_order, self.video_bitrate = field_order, video_bitrate
         self.auto_restart, self.seconds = auto_restart and not seconds, seconds
         self.part_factory, self.ready_override = part_factory, ready
+        self.continuous = continuous
         self.diagnostics = Path(diagnostics_dir or diagnostics_root()/'Recordings')/uuid.uuid4().hex
         self.diagnostics.mkdir(parents=True)
         self.manifest = self.diagnostics/'session.json'
@@ -30,7 +31,8 @@ class RecordingSession:
         self.stable_since = None; self.stable_profile = None
         self.state = dict(phase='waiting', armed=True, auto_restart=self.auto_restart,
             requested_path=str(self.path), started_utc=datetime.now(timezone.utc).isoformat(),
-            parts=[], breaks=0, errors=[], diagnostics=str(self.diagnostics))
+            parts=[], breaks=0, errors=[], diagnostics=str(self.diagnostics),
+            time_policy='original-usb-pts-v2' if continuous else 'fixed-cadence-guard')
         self.thread = threading.Thread(target=self._run,daemon=True)
         self._save()
 
@@ -48,6 +50,10 @@ class RecordingSession:
     def _ready(self):
         if self.ready_override:
             return self.ready_override()
+        if self.continuous:
+            # Subscribe while the source is noisy/unlocked too. First full
+            # recovered pictures go straight to the same encoder, not a gate.
+            return bool(self.source.current_profile)
         profile, signal = self.source.current_profile, self.source.signal
         if not profile or not signal or not (signal['present'] and signal['hlock'] and signal['vlock']):
             self.stable_since=None; return False
@@ -87,7 +93,7 @@ class RecordingSession:
                 path=self._part_path(number)
                 part=self.part_factory(self.source,path,field_order=self.field_order,
                     video_bitrate=self.video_bitrate,seconds=self.seconds,
-                    diagnostics_dir=self.diagnostics/'Parts')
+                    diagnostics_dir=self.diagnostics/'Parts',timestamped=self.continuous)
                 with self.lock:
                     self.current=part
                     if self.stopping.is_set():

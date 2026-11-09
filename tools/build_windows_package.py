@@ -21,6 +21,7 @@ def main():
     parser.add_argument('--output', type=Path, required=True, help='new, nonexistent output directory')
     parser.add_argument('--iscc', type=Path)
     parser.add_argument('--version', default='0.1.0')
+    parser.add_argument('--timestamp-ffmpeg',type=Path,default=ROOT/'build/timestamp-ffmpeg')
     parser.add_argument('--libusb-source', type=Path, required=True, help='official libusb v1.0.30 source archive')
     parser.add_argument('--libusb-license', type=Path, required=True)
     args = parser.parse_args()
@@ -32,16 +33,24 @@ def main():
     ffmpeg = args.ffmpeg_dir.resolve()
     binaries = [ROOT/'build'/name for name in ('c039-capture.dll','c039-probe.exe','libusb-1.0.dll')]
     binaries += [ffmpeg/'bin'/name for name in ('ffmpeg.exe','ffprobe.exe')]
-    for binary in binaries+[ffmpeg/'LICENSE',args.libusb_source,args.libusb_license]:
+    timed=args.timestamp_ffmpeg.resolve()
+    for binary in binaries+[ffmpeg/'LICENSE',args.libusb_source,args.libusb_license,
+                            timed/'bin/ffmpeg.exe',timed/'LICENSE',timed/'ffmpeg-5.1.2.tar.xz',timed/'provenance.json']:
         if not binary.is_file():
             parser.error('missing component: '+str(binary))
     output.mkdir(parents=True)
     licenses = output/'licenses'; licenses.mkdir()
+    (output/'components').mkdir()
+    shutil.copy2(timed/'bin/ffmpeg.exe',output/'components/ffmpeg-timestamps.exe')
+    binaries.append(output/'components/ffmpeg-timestamps.exe')
     for name in ('LICENSE','NOTICE'):
         shutil.copy2(ROOT/name, licenses/name)
     shutil.copy2(ffmpeg/'LICENSE',licenses/'FFmpeg-LICENSE.txt')
     shutil.copy2(args.libusb_source,licenses/'libusb-1.0.30-source.tar.gz')
     shutil.copy2(args.libusb_license,licenses/'libusb-COPYING.txt')
+    shutil.copy2(timed/'LICENSE',licenses/'FFmpeg-timestamps-LICENSE.txt')
+    shutil.copy2(timed/'ffmpeg-5.1.2.tar.xz',licenses/'ffmpeg-timestamps-source.tar.xz')
+    shutil.copy2(timed/'provenance.json',licenses/'ffmpeg-timestamps-provenance.json')
     shutil.copy2(Path(sys.base_prefix)/'LICENSE.txt',licenses/'Python-LICENSE.txt')
     for package in ('Pillow','PyInstaller'):
         distribution = importlib.metadata.distribution(package)
@@ -56,10 +65,11 @@ def main():
     with zipfile.ZipFile(licenses/'C039-source.zip','w',zipfile.ZIP_DEFLATED) as archive:
         sources = list((ROOT/'src').glob('*'))+list((ROOT/'tools').glob('*.py'))+list((ROOT/'tools').glob('*.iss'))+list((ROOT/'tests').glob('*'))
         sources += list((ROOT/'docs').glob('*.md'))
+        sources += list((ROOT/'references/ffmpeg').glob('*'))
         sources += [ROOT/'LICENSE',ROOT/'NOTICE',ROOT/'README.md',ROOT/'Makefile',
                     ROOT/'LICENSES/MIT.txt',ROOT/'references/linux-sources.json']
         for source in sources:
-            if source.is_file() and (source.suffix in ('.py','.c','.h','.m','.md','.json','.iss','.txt') or source.name in ('LICENSE','NOTICE','Makefile')):
+            if source.is_file() and (source.suffix in ('.py','.c','.h','.m','.md','.json','.iss','.txt','.patch') or source.name in ('LICENSE','NOTICE','Makefile')):
                 archive.write(source,str(source.relative_to(ROOT)))
     readme = output/'TEST-BUILD.txt'
     readme.write_text(f'C039 Recorder {args.version} test build, Windows x64.\n'
