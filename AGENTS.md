@@ -82,3 +82,8 @@ fixed-cadence failure/restart. Preserve positive gaps, all admitted samples,
 no frame repair/raw pre-roll. Geometry changes still require a native new part.
 User has an NTSC cassette; current old-viewer output is PAL-60. Physical 0.2.0
 checks are pending a manual handoff, not lack of tape. Do not close the viewer.
+
+0.2.0 short physical PAL-60 evidence: docs/WINDOWS_PAL60_QUALIFICATION.md.
+Full media/source-PTS reconciliation passed; one unlocated incomplete source pair
+prevents unconditional continuity qualification. Analog lip sync/field dominance
+remain uncalibrated. User stopped recording and closed preview manually.

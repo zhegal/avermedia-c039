@@ -177,3 +177,15 @@ The user has an NTSC cassette and confirms it is playing; the old viewer reports
 stable PAL-60 output with H/V/chroma lock. Do not keep deferring for lack of tape,
 but do not call this genuine NTSC 3.58 or a new recording qualification. The active
 old viewer was left open. Physical regression of 0.2.0 awaits manual user handoff.
+
+
+## 0.2.0 physical PAL-60 short recording (2026-11-10)
+
+User manually recorded/stopped and closed preview. Full offline verification of
+54.69 seconds/1,639 pictures passed: every admitted picture and PCM sample retained,
+source PTS preserved within mux quantization, MP2 priming/padding accounted for.
+One incomplete source field pair has no location in aggregate diagnostics, so this
+is not an unqualified source-continuity pass or calibrated analog sync/field order.
+No internal video PTS gap/native error; PAL-60 output is not genuine NTSC3.58 proof.
+See [WINDOWS_PAL60_QUALIFICATION.md](WINDOWS_PAL60_QUALIFICATION.md).
+PAL/SECAM transitions and longer physical 0.2.0 checks remain pending.

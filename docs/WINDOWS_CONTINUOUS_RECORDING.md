@@ -149,3 +149,15 @@ This is an unsigned local evaluation build. Installation/upgrade of 0.2.0 was
 not exercised while the user's active 0.1.1 viewer holds the application mutex.
 The running viewer was left untouched; loading the new implementation requires
 the user to stop recording and close that viewer manually when ready.
+
+
+## 0.2.0 physical PAL-60 short recording (2026-11-10)
+
+User manually recorded/stopped and closed preview. Full offline verification of
+54.69 seconds/1,639 pictures passed: every admitted picture and PCM sample retained,
+source PTS preserved within mux quantization, MP2 priming/padding accounted for.
+One incomplete source field pair has no location in aggregate diagnostics, so this
+is not an unqualified source-continuity pass or calibrated analog sync/field order.
+No internal video PTS gap/native error; PAL-60 output is not genuine NTSC3.58 proof.
+See [WINDOWS_PAL60_QUALIFICATION.md](WINDOWS_PAL60_QUALIFICATION.md).
+PAL/SECAM transitions and longer physical 0.2.0 checks remain pending.
