@@ -43,9 +43,27 @@ native session and uses bounded display queues, native field weaving and a Tk
 window with decoder/lock status. RGB conversion and horizontal 4:3 display
 correction are preview-only; no deinterlacing or raw capture modification.
 Observed PAL/SECAM profile transitions retained the same USB session/window.
-This is a diagnostic viewer, with no audio playback/archival recording controls.
-Windows live HTTP/encoding integration is still pending; keep the explicit
-CaptureStream Windows refusal until that separate transport edge is implemented.
+The user clarified that the logical viewer must end **only on manual Stop**, and
+must keep audio/window alive through rewind and every supported native geometry
+change. The default viewer is now `preview_windows_direct.py`: persistent Tk
+window, preview-only incomplete-field rendering, WinMM PCM buffers and video
+scheduled against the PCM playback sample clock. It accepts all nine shared
+profiles and restarts only RGB conversion on 576/25 <-> 480/29.97 changes. Source
+errors are shown; confirmed-clean source errors may reopen a native epoch inside
+the same logical viewer. Unconfirmed cleanup suspends reopen instead of hiding
+the failure. There is no archival recording control in this diagnostic viewer.
+
+Do not use desktop automation/screenshots: the user rejected the “using your
+computer” banner. Do not terminate their active viewer to rebuild/reload; they
+stop it manually. See root AGENTS.md for these standing constraints.
+
+The Windows fixed-geometry encoding edge now uses bounded local named pipes,
+shared parser/cadence, PCM alignment and FFmpeg MPEG-2/MP2 or NUT. Software tests
+pass, including strict-gap rejection versus explicitly lossy viewing. Live HTTP
+hardware integration with the persistent shared viewer is the next work: do not
+start a second USB owner or equate these software tests with physical MPEG-TS
+qualification. Geometry changes still explicitly end fixed-format encoder parts,
+**not** the logical viewer. Do not reconnect the viewer through that muxer.
 
 The initial stage changed no bindings. On 2026-11-09 the user explicitly approved
 a temporary signed WinUSB binding on MI_01 only. That binding and an AVerPola

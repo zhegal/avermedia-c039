@@ -41,12 +41,12 @@ class VideoCadence:
         self.epoch = self.previous = None
         self.sent = 0
 
-    def advance(self, stamp):
+    def advance(self, stamp, *, continuous_preview=False):
         if self.previous is None:
             self.epoch = stamp
         elif not self.conceal:
             held_frames(self.previous, stamp, self.period)
-        elif not 0 < stamp - self.previous <= self.period * 51 + 2000:
+        elif not 0 < stamp - self.previous or (not continuous_preview and stamp - self.previous > self.period * 51 + 2000):
             raise StreamError('video timestamp gap exceeds bounded viewing recovery')
         self.previous = stamp
         missing = round((stamp - self.epoch) / self.period) - self.sent if self.conceal else 0
@@ -76,6 +76,11 @@ class PacketWindow:
         if int(status, 16) not in (0, 0xe00002e7) or int(transfer, 16) not in (0, 0xe00002e7):
             raise StreamError('USB packet or transfer error; stream is discontinuous')
         row = (int(offset), int(length), int(bus) * 1000 + int(micro) * 125)
+        self.add_packet(*row)
+
+    def add_packet(self, offset, length, timestamp):
+        """Already-validated native packet metadata, without CSV serialization."""
+        row = (offset, length, timestamp)
         with self.changed:
             self.packets += 1
             if row[1]:
@@ -132,13 +137,16 @@ class StreamStats:
 
 class CaptureStream:
     def __init__(self, *, standard='pal', seconds=0, attenuation=6,
-                 container='nut', field_order=None, conceal_gaps=False, auto_geometry='pal'):
+                 container='nut', field_order=None, conceal_gaps=False, auto_geometry='pal', video_bitrate=12):
         if standard not in NAMES or not 0 <= seconds <= 3600 or auto_geometry not in ('pal', 'ntsc'):
             raise ValueError('invalid standard or duration')
         if not 0 <= attenuation <= 48 or container not in ('nut', 'mpegts'):
             raise ValueError('invalid attenuation or container')
         if field_order not in (None, 'tff', 'bff') or (container == 'mpegts' and field_order is None):
             raise ValueError('MPEG-TS requires explicit tff/bff field order')
+        if video_bitrate not in range(8, 13):
+            raise ValueError('video bitrate must be 8..12 Mbit/s')
+        self.video_bitrate = video_bitrate
         self.standard, self.seconds, self.attenuation = standard, seconds, attenuation
         self.height, self.rate = geometry(standard, auto_geometry)
         self.container, self.field_order = container, field_order
@@ -159,19 +167,21 @@ class CaptureStream:
 
     def mux_command(self, video_fd, audio_fd):
         height, rate = self.height, self.rate
+        video_input = f'pipe:{video_fd}' if isinstance(video_fd, int) else str(video_fd)
+        audio_input = f'pipe:{audio_fd}' if isinstance(audio_fd, int) else str(audio_fd)
         cmd = ['ffmpeg', '-nostdin', '-hide_banner', '-loglevel', 'warning',
                '-thread_queue_size', '32', '-f', 'rawvideo', '-pixel_format', 'uyvy422',
                '-video_size', f'720x{height}', '-framerate', rate, '-probesize', '32',
-               '-analyzeduration', '0', '-i', f'pipe:{video_fd}',
+               '-analyzeduration', '0', '-i', video_input,
                '-thread_queue_size', '128', '-f', 's16le', '-ar', '48000', '-ac', '2',
-               '-probesize', '32', '-analyzeduration', '0', '-i', f'pipe:{audio_fd}',
+               '-probesize', '32', '-analyzeduration', '0', '-i', audio_input,
                '-map', '0:v:0', '-map', '1:a:0']
         if self.field_order:
             cmd += ['-vf', f'setfield={self.field_order}']
         if self.container == 'nut':
             cmd += ['-c:v', 'rawvideo', '-threads:v', '1', '-c:a', 'pcm_s16le']
         else:
-            cmd += ['-c:v', 'mpeg2video', '-pix_fmt', 'yuv422p', '-b:v', '12M',
+            cmd += ['-c:v', 'mpeg2video', '-pix_fmt', 'yuv422p', '-b:v', f'{self.video_bitrate}M',
                     '-flags', '+ilme+ildct', '-alternate_scan', '1', '-g', '12', '-bf', '0',
                     '-c:a', 'mp2', '-b:a', '256k', '-mpegts_flags', '+pat_pmt_at_frames',
                     '-muxdelay', '0', '-muxpreload', '0']
@@ -179,7 +189,8 @@ class CaptureStream:
 
     def run(self, output, log_path, *, allow_disconnect=False):
         if os.name == 'nt':
-            raise StreamError('Windows live capture is not implemented yet; build/c039-probe.exe --check only diagnoses USB access')
+            from windows_stream import run_windows
+            return run_windows(self, output, log_path, allow_disconnect=allow_disconnect)
         if not shutil.which('ffmpeg') or not (ROOT / 'build/c039-probe').is_file():
             raise StreamError('build/c039-probe and ffmpeg are required; run make first')
         log_path = Path(log_path)

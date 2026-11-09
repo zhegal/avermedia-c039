@@ -305,3 +305,88 @@ visually with the computer-use skill. Windows live MPEG-TS/HTTP integration
 remains pending, so `CaptureStream.run` still refuses that unsupported path.
 
 Timing API reference: [scheduled ISO read and returned frame semantics](https://learn.microsoft.com/en-us/windows/win32/api/winusb/nf-winusb-winusb_readisochpipe).
+
+## Persistent video + sound requirement and correction (2026-11-09)
+
+The user requested sound to inspect sync, rejected desktop-automation overlays,
+then reported viewer exits during rewind and at a normal micro-transition. The
+standing requirement is now explicit: **only manual Stop/Close ends the logical
+viewer session; every supported standard/native family must play in that window**.
+
+An intermediate NUT/FFplay monitor was unsuitable as the default viewer. Its
+fixed-format encoder stopped after four seconds without complete fields, and
+another run stopped on a hardware Auto report of 480/29.97. It also encountered
+one ISO completion error 31. The failures were not concealed: diagnostics retain
+those return codes. The user initially heard audio with no noticeable sync offset
+in the NUT path, but this does not qualify the replacement monitor's latency.
+That intermediate tool was removed; it is not the default viewer.
+
+Current default command remains `python tools/preview_windows.py --standard auto`.
+It now launches `preview_windows_direct.py` and `windows_preview.PreviewCapture`:
+
+- One persistent Tk window and one native USB owner. No FFplay/encoder container
+  sits between capture and the window. A temporary RGB converter failure or a
+  decoder format change cannot automatically close the logical session.
+- Hardware Auto handles all nine profiles. Native 720x576/25 and
+  720x480/30000:1001 are shown explicitly; only RGB display conversion is rebuilt
+  on family changes. PAL/SECAM transitions retain USB. Explicit manual profile
+  Apply may restart a native epoch while retaining the logical window.
+- PreviewDecoder alone can display useful rows from incomplete field pairs,
+  preserving known field rows and retaining prior rows where data is missing.
+  Partial pictures and display drops are counted. Strict `bt656.Decoder` and the
+  native archival frame parser keep their existing complete-field rules.
+- PCM is independent of complete video. The monitor uses a bounded set of twelve
+  20 ms Windows waveOut buffers, stereo S16LE/48 kHz, with 120 ms startup headroom.
+  Display scheduling maps video USB time into the PCM sample offset and follows
+  `waveOutGetPosition`; it does not play sound in an unrelated second player.
+  Empty PCM packets receive counted silence **only in the monitor**. Source audio
+  sample counts remain separate. No source resampling or archived audio repair.
+- Native callbacks may deliver one validated 64-packet batch per 8 ms rather
+  than 16,000 Python crossings/second. The default per-packet C callback API and
+  macOS transport are preserved. Batches retain every packet's length/offset and
+  scheduled timestamp; they are not a lower-rate timestamp approximation.
+- A completed, failed ISO request is now distinguished from failure to drain or
+  restore its resources. Source errors remain errors; confirmed-clean failures
+  can start a new native epoch with a visible recovery counter. An unconfirmed
+  cleanup does not trigger a blind reopen. The window remains open awaiting
+  user action rather than claiming uninterrupted archival capture.
+- User Stop waits for the native drain before destroying decoder/audio state.
+  Closing the renderer is never an implicit source Stop. The user must manually
+  end an active viewer before a developer reload; no desktop automation is used.
+
+Physical evidence for this replacement is limited: the user replayed the
+previously problematic tape fragment and reported **no exit this time**. Live
+logs show multiple PAL/SECAM events without another ISO setup. An actual NTSC
+source and regional variants have not been qualified, despite native-format and
+all-profile software coverage. Continuous image/audio quality, precise A/V
+offset, display latency, unplug recovery and long-run reliability remain open.
+
+Software checks now pass **42 Python tests**, plus the C control/frame/AV tests:
+native 480/576 field equivalence; preview-only damaged fields; bounded repeated
+field memory; all-profile viewer geometry events without session closure; PCM
+delivery without a single complete video frame; real named-pipe exact delivery,
+absent/stalled reader deadlines; synthetic MPEG-2/MP2 full decode, five retained
+frames, interlace flags, 48 kHz stereo/256 kbit/s; strict gap rejection, explicitly
+counted viewing concealment and geometry-family refusal for fixed encoder parts.
+A silent local waveOut smoke check advanced its sample clock and released its
+buffers. It did not open USB and is not an A/V calibration test.
+
+The Windows `CaptureStream` transport edge is implemented using local overlapped
+named pipes and the existing FFmpeg command construction; its target bitrate is
+now selectable from 8 through 12 Mbit/s. PCM starts at the video USB epoch and is
+trimmed to admitted picture duration without resampling; source counts and clock
+drift remain visible in Windows status. The existing HTTP broker/server is reused,
+but **physical HTTP/multiple-client and strict recording qualification are still
+pending**. It must subscribe to the persistent source before being integrated
+with the user's live viewer; never create a second USB owner. A fixed-geometry
+encoder's deliberate failure must not become the viewer lifecycle again.
+
+Evidence: `build/preview-av-first-failure.stream.log`,
+`build/preview-av-rewind-failure.stream.log`, `build/preview-av-03.err.log`,
+`build/preview-direct.err.log`, `build/python-tests-persistent-preview.txt` and
+retained synthetic files in `build/windows-stream-tests/`. These failed prototype
+runs do not count as successful capture qualification. No recording/test media
+was deleted. No additional driver/security changes were made.
+
+Audio APIs: [waveOut position and supported clock units](https://learn.microsoft.com/en-us/windows/win32/api/mmeapi/nf-mmeapi-waveoutgetposition),
+[waveOut PCM device open](https://learn.microsoft.com/en-us/windows/win32/api/mmeapi/nf-mmeapi-waveoutopen).

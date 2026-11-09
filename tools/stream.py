@@ -21,13 +21,14 @@ def main():
     p.add_argument('--audio-attenuation-db', type=int, default=6)
     p.add_argument('--format', choices=['nut', 'mpegts'], default='nut')
     p.add_argument('--field-order', choices=['tff', 'bff'])
+    p.add_argument('--video-bitrate', type=int, choices=range(8, 13), default=12, help='MPEG-2 target Mbit/s')
     p.add_argument('--output', default='-', help='-: binary stdout; otherwise a new file')
     p.add_argument('--log', type=Path, default=ROOT / 'build/stream.log')
     args = p.parse_args()
     try:
         engine = CaptureStream(standard=args.standard, seconds=args.seconds,
             attenuation=args.audio_attenuation_db, container=args.format, field_order=args.field_order,
-            auto_geometry=args.auto_geometry)
+            auto_geometry=args.auto_geometry, video_bitrate=args.video_bitrate)
     except ValueError as error:
         p.error(str(error))
     if args.output == '-' and sys.stdout.isatty():

@@ -1,0 +1,36 @@
+# C039 cross-platform development
+
+Read `docs/PROJECT_CONTEXT.md`, `docs/ROADMAP.md` and `docs/WINDOWS.md` before
+changes. Work in `D:\AverMedia` on `feature/windows-support`. Preserve macOS,
+reuse shared C hardware logic and do not merge/push to main without permission.
+Update dated evidence/context after a stage, run appropriate checks and commit
+that stage only. Preserve user recordings and retained test media.
+
+## Current user constraints (2026-11-09)
+
+- A temporary signed WinUSB binding on C039 **MI_01 only** was explicitly approved
+  and a restore/rebind round trip was tested. Do not change the composite parent,
+  MI_00, trust stores, signature/security policy or install custom kernel drivers.
+  `c039-driver.exe` is an explicit, machine-specific maintenance tool, not an
+  installer; never invoke it from capture or automatic tests.
+- The **logical preview session/window ends only when the user manually stops
+  or closes it**. Micro-transitions, missing lock, rewind and changes between all
+  supported 625/50 and 525/59.94 profiles must not close the viewer. Show actual
+  native geometry/rate. Keep sound and restore image when source returns.
+- Keep preview damage repair, repeated images and inserted monitor silence
+  explicitly counted and isolated from strict archival data. Archive failures
+  must not stop the shared source or viewer. Do not silently change an archive's
+  geometry/frame rate or mask frame/PCM loss.
+- The user wants visible **video plus sound** and no “ChatGPT is using your
+  computer” overlay. Use normal local application windows and logs; do not use
+  desktop automation/screenshots to inspect or operate their desktop.
+- Do not terminate the running preview to rebuild/reload. The user ends that
+  logical session manually. Never open a second USB owner while it is active.
+- Do not create Setup.exe before the backend is qualified. Never pretend that
+  software mocks, readback, a short capture or a roadmap proves hardware quality.
+
+Build: `python tools/build_windows.py --cc <x64-compiler> --libusb <extracted-archive>`.
+The hardware smoke tool runs only with explicit `--hardware`; automated tests
+must not open USB. Windows 10, physical NTSC/regional formats, controlled A/V/field
+calibration and long archival capture remain pending unless dated evidence says
+otherwise. Source playback observed by the user is not an independent sync test.

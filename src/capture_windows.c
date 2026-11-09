@@ -11,6 +11,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include "capture_device.h"
+#include "capture_windows.h"
 #include "av_init.h"
 
 enum { SLOTS=32, PACKETS=64, TRANSFER_MS=8 };
@@ -41,6 +42,7 @@ struct c039_session {
     void *context;
     void (*standard_changed)(void *,const c039_video_standard *);
     void (*signal_changed)(void *,const c039_signal_status *);
+    c039_windows_batch_callback batch;
 };
 static int win_error(const char *operation) {
     fprintf(stderr,"%s failed Windows error=%lu\n",operation,GetLastError()); return 1;
@@ -59,6 +61,9 @@ void c039_session_set_standard_callback(c039_session *s,void (*callback)(void *,
 }
 void c039_session_set_signal_callback(c039_session *s,void (*callback)(void *,const c039_signal_status *)) {
     if(s && !s->used) s->signal_changed=callback;
+}
+void c039_windows_session_set_batch_callback(c039_session *s,c039_windows_batch_callback callback) {
+    if(s && !s->used) s->batch=callback;
 }
 static int cancelled(void *context) { return InterlockedCompareExchange(&((c039_session *)context)->stopped,0,0)!=0; }
 static void delay(void *context,unsigned ms) { (void)context; Sleep(ms); }
@@ -187,9 +192,14 @@ static int consume(iso_stream *stream,c039_session *s,iso_slot *slot) {
     DWORD ignored=0;
     if(!WinUsb_GetOverlappedResult(stream->usb,&slot->operation,&ignored,FALSE)) {
         if(GetLastError()==ERROR_IO_INCOMPLETE) return 0;
-        slot->pending=0; stream->bad++; return win_error("ISO transfer completion");
+        DWORD code=GetLastError();
+        slot->pending=0; stream->bad++;
+        for(unsigned n=0;n<8;n++) fprintf(stderr,"failed_iso_packet endpoint=%u packet=%u status=%08lx length=%lu\n",
+            stream->number,n,slot->packets[n].Status,slot->packets[n].Length);
+        SetLastError(code); return win_error("ISO transfer completion");
     }
     slot->pending=0;
+    uint64_t batch_bytes=0;
     for(unsigned n=0;n<PACKETS;n++) {
         USBD_ISO_PACKET_DESCRIPTOR *packet=&slot->packets[n];
         stream->packets++;
@@ -200,8 +210,14 @@ static int consume(iso_stream *stream,c039_session *s,iso_slot *slot) {
             stream->bad++; return 1;
         }
         uint64_t timestamp=(slot->frame+n/8)*1000+(n%8)*125;
-        if(s->payload(s->context,(int)stream->number,slot->data+packet->Offset,packet->Length,timestamp)) return 1;
-        stream->bytes+=packet->Length;
+        if(!s->batch) {
+            if(s->payload(s->context,(int)stream->number,slot->data+packet->Offset,packet->Length,timestamp)) return 1;
+            stream->bytes+=packet->Length;
+        } else batch_bytes+=packet->Length;
+    }
+    if(s->batch) {
+        if(s->batch(s->context,(int)stream->number,slot->data,PACKETS*stream->capacity,slot->packets,PACKETS,slot->frame*1000)) return 1;
+        stream->bytes+=batch_bytes;
     }
     stream->consumed++;
     return 0;
@@ -218,8 +234,11 @@ static int cleanup(iso_stream *stream) {
                 fputs("ISO drain timeout: retaining buffers/handles until process exit\n",stderr); return 2;
             }
             DWORD ignored=0;
-            if(!WinUsb_GetOverlappedResult(stream->usb,&slot->operation,&ignored,FALSE) && GetLastError()!=ERROR_OPERATION_ABORTED)
-                failed=win_error("drain ISO result");
+            if(!WinUsb_GetOverlappedResult(stream->usb,&slot->operation,&ignored,FALSE) && GetLastError()!=ERROR_OPERATION_ABORTED) {
+                /* The signaled operation is drained even when its transfer
+                 * failed. Keep that source error separate from restore failure. */
+                stream->bad++; win_error("drained failed ISO result");
+            }
             slot->pending=0;
         }
     }

@@ -22,6 +22,8 @@ def main():
     p.add_argument('--standard', choices=NAMES, default='pal')
     p.add_argument('--auto-geometry', choices=['pal', 'ntsc'], default='pal')
     p.add_argument('--field-order', choices=['tff', 'bff'])
+    p.add_argument('--video-bitrate', type=int, choices=range(8, 13), default=12, help='MPEG-2 target Mbit/s')
+    p.add_argument('--preview', action='store_true', help='open local A/V viewer using this shared HTTP source')
     p.add_argument('--seconds', type=int, default=0)
     p.add_argument('--audio-attenuation-db', type=int, default=6)
     p.add_argument('--port', type=int, default=8079)
@@ -36,7 +38,7 @@ def main():
     try:
         engine = None if args.replay else CaptureStream(standard=args.standard, seconds=args.seconds,
             attenuation=args.audio_attenuation_db, container='mpegts', field_order=args.field_order,
-            conceal_gaps=not args.strict, auto_geometry=args.auto_geometry)
+            conceal_gaps=not args.strict, auto_geometry=args.auto_geometry, video_bitrate=args.video_bitrate)
     except ValueError as error:
         p.error(str(error))
     broker = TransportBroker()
@@ -52,7 +54,10 @@ def main():
     signal.signal(signal.SIGINT, stop)
     signal.signal(signal.SIGTERM, stop)
     server = make_server(args.port, broker, lambda: dict(source='replay' if args.replay else args.standard,
-        capture=asdict(engine.stats) if engine else None, errors=errors + (engine.errors if engine else [])))
+        capture=asdict(engine.stats) if engine else None,
+        signal=getattr(engine, 'latest_signal', None), windows=getattr(engine, 'windows_status', None),
+        loss_policy='strict' if args.strict else 'viewing-concealment',
+        errors=errors + (engine.errors if engine else [])))
     args.log.parent.mkdir(parents=True, exist_ok=True)
     reader, writer_fd = os.pipe()
 
@@ -96,8 +101,12 @@ def main():
     print(f'http://127.0.0.1:{args.port}/live.ts', flush=True)
     print(f'Status: http://127.0.0.1:{args.port}/status', file=sys.stderr, flush=True)
     try:
-        while workers[0].is_alive() and not stopped.wait(.1):
-            pass
+        if args.preview:
+            from preview_http import show_preview
+            show_preview(args.port, engine, stop, workers[0])
+        else:
+            while workers[0].is_alive() and not stopped.wait(.1):
+                pass
     finally:
         stop()
         workers[0].join(timeout=30)

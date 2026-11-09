@@ -8,6 +8,11 @@
 #include "av_init.h"
 #include <stdio.h>
 #include <string.h>
+#ifdef _WIN32
+// Windows embeds this engine in Python; binary stdout must remain media-only.
+#define printf(...) fprintf(stderr,__VA_ARGS__)
+#define puts(message) fprintf(stderr,"%s\n",(message))
+#endif
 
 typedef struct {
     uint8_t request, size;

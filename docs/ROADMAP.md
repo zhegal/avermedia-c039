@@ -23,6 +23,10 @@ Updated 2026-11-09. Work only on `feature/windows-support`; no main merge.
 5. Replace the POSIX transport edge in the Python pipeline; reuse the frame
    decoder, strict timing rules, MPEG-2/MP2 command construction and HTTP broker.
    Verify 8-12 Mbit/s MPEG-2, MP2 256 kbit/s, multiple clients, /status and /health.
+   Windows named-pipe/mux transport is now implemented and software-tested.
+   Persistent native-format video+PCM preview is separate, by explicit user
+   requirement. NEXT: subscribe HTTP/recording consumers to that single source;
+   encoder/geometry/gap failures must not close the viewer or reopen USB.
 6. Short physical captures first: packet errors, admitted/decoded frames, PCM
    samples, timestamps, fields and controlled A/V sync. Then disk-budgeted long
    captures and error injection. Retain all user/test media.

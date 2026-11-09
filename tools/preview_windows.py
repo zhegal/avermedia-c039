@@ -163,4 +163,8 @@ def main():
 
 
 if __name__ == '__main__':
-    main()
+    if '--video-only' in sys.argv:
+        sys.argv.remove('--video-only'); main()
+    else:
+        from preview_windows_direct import main as av_main
+        av_main()
