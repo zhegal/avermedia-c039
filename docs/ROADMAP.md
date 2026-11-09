@@ -74,3 +74,16 @@ User reported no noticeable preview A/V offset near the start and end. Source
 clock drift is explicitly retained, not called perfect synchronization. See
 [scope and evidence](WINDOWS_LONG_CAPTURE.md). Multi-hour, physical NTSC, controlled
 disturbances, Windows 10, macOS regression and portable/installer work remain open.
+
+## Rewind and signal-loss recovery checked (2026-11-09)
+
+One physical tape-search event and one Composite RCA disconnect/reconnect triggered
+explicit timestamp-gap part failures and automatic recording continuation. Three
+retained parts fully decode with exact picture/sample checks; the first two remain
+classified interrupted. Manual Stop disarmed retry. Viewer stayed open, source
+recoveries remained zero; user confirmed picture/audio recovery after both events.
+Offline verification adds explicit interrupted-part inspection without qualifying
+failed recordings as continuous. All 51 tests pass. Evidence and limits:
+[WINDOWS_DISTURBANCE_CAPTURE.md](WINDOWS_DISTURBANCE_CAPTURE.md). This supersedes
+only the pending status of these two disturbance scenarios, not all error recovery,
+physical NTSC, multi-hour, Windows 10, portable packaging or installer validation.

@@ -43,3 +43,7 @@ BWDIF/scaling must never enter archive/HTTP encoding. See dated stage notes.
 Thirty-minute physical recording evidence: docs/WINDOWS_LONG_CAPTURE.md.
 Retain the user file and private evidence. Do not generalize this single 625/50
 run to multi-hour/NTSC/recovery/Windows 10 acceptance or calibrated analog sync.
+
+Bounded rewind/Composite-loss recovery evidence: docs/WINDOWS_DISTURBANCE_CAPTURE.md.
+Interrupted-part inspection must preserve verified=false and original errors;
+retained media decoding is not uninterrupted archival qualification.

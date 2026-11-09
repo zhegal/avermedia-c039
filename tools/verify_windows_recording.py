@@ -7,10 +7,11 @@ import shutil
 import subprocess
 
 
-def verify(manifest):
+def verify(manifest, *, inspect_interrupted=False):
     manifest = Path(manifest)
     state = json.loads(manifest.read_text(encoding='utf-8'))
-    if state.get('state') != 'captured-unverified' or state.get('return_code') != 0 or state.get('errors'):
+    interrupted = state.get('state') != 'captured-unverified' or state.get('return_code') != 0 or bool(state.get('errors'))
+    if interrupted and not (inspect_interrupted and state.get('state') == 'failed'):
         raise ValueError('recording is incomplete/failed; refusing successful archival qualification')
     ffprobe = shutil.which('ffprobe')
     if not ffprobe:
@@ -69,7 +70,9 @@ def verify(manifest):
     priming_samples = (stamps[0] - audio_stamps[0]) * 48000
     if abs(priming_samples - 481) > 48000/90000 + .05:
         raise ValueError('encoded A/V origin differs from expected MP2 priming')
-    return dict(verified=True, file=state['file'], full_decode=True, video_frames=len(frames),
+    return dict(verified=not interrupted, retained_media_checks_passed=True,
+        continuity='interrupted' if interrupted else 'continuous', source_errors=state.get('errors', []),
+        file=state['file'], full_decode=True, video_frames=len(frames),
         source_pcm_samples=expected_samples, decoded_audio_samples=samples, mp2_padding_samples=samples-expected_samples,
         native_geometry=f"720x{state['height']}", rate=state['rate'], field_order=state['field_order'],
         analog_lip_sync_calibrated=False, physical_field_dominance_calibrated=False,
@@ -84,8 +87,10 @@ def verify(manifest):
 def main():
     parser=argparse.ArgumentParser(description=__doc__)
     parser.add_argument('manifest',type=Path)
+    parser.add_argument('--inspect-interrupted', action='store_true',
+        help='check retained media of a failed part without qualifying it as an uninterrupted archive')
     args=parser.parse_args()
-    print(json.dumps(verify(args.manifest),indent=2))
+    print(json.dumps(verify(args.manifest, inspect_interrupted=args.inspect_interrupted),indent=2))
 
 
 if __name__=='__main__':

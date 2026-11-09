@@ -42,6 +42,17 @@ class RecordingLifecycle(unittest.TestCase):
         self.assertEqual(result['source_pcm_samples'],9600)
         self.assertLess(result['mp2_padding_samples'],1152)
         self.assertTrue(result['audio_pts_checked'])
+        interrupted_state=json.loads(recording.manifest.read_text())
+        interrupted_state.update(state='failed',return_code=1,errors=['video timestamp gap'])
+        interrupted_manifest=recording.manifest.with_name('interrupted-fixture.json')
+        interrupted_manifest.write_text(json.dumps(interrupted_state))
+        with self.assertRaisesRegex(ValueError,'incomplete/failed'):
+            verify(interrupted_manifest)
+        inspected=verify(interrupted_manifest,inspect_interrupted=True)
+        self.assertFalse(inspected['verified'])
+        self.assertTrue(inspected['retained_media_checks_passed'])
+        self.assertEqual(inspected['continuity'],'interrupted')
+        self.assertEqual(inspected['source_errors'],['video timestamp gap'])
         # Corrupt one decoded audio timestamp while retaining all media counts.
         # Qualification must detect timing damage even when lengths still match.
         import verify_windows_recording as checker
