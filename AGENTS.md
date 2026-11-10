@@ -91,3 +91,7 @@ remain uncalibrated. User stopped recording and closed preview manually.
 2026-11-10 user authorized publishing feature/windows-support and a working
 local 0.2.0 snapshot: docs/WINDOWS_SNAPSHOT_020.md. No main merge. Source branch
 publication is separate from public binary distribution readiness.
+
+Open future VHS transition/recovery issue: docs/WINDOWS_VHS_TRANSITIONS.md.
+User requested tracking only; do not implement from roadmap alone or promise
+software TBC/reconstruction of data not delivered by C039.

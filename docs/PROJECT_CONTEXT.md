@@ -234,3 +234,13 @@ PAL/SECAM transitions and longer physical 0.2.0 checks remain pending.
 0.2.0 source and local standalone Setup/portable snapshot: see
 [WINDOWS_SNAPSHOT_020.md](WINDOWS_SNAPSHOT_020.md). User authorized publishing
 feature/windows-support; no main merge and no public binary release.
+
+
+## Open future issue: unstable VHS transitions (2026-11-10)
+
+Track improved capture recovery at problematic tape boundaries/lock loss without
+external TBC: [WINDOWS_VHS_TRANSITIONS.md](WINDOWS_VHS_TRANSITIONS.md). Diagnose
+analog lock, USB transport and field assembly separately; preserve all recoverable
+source fields/PCM and original PTS, with no archival concealment. Physical 0.2.0
+transition qualification is pending. Full software replacement of hardware TBC is
+not claimed. Tracking only; no implementation or new hardware run authorized here.
